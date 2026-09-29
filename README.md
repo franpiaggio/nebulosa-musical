@@ -11,7 +11,11 @@ Press the round **play** button under the image, or the **space bar**, to play a
 - Play starts gently: the pedal swells in alone while the line waits three seconds off the left edge, then the stars join one by one as the line reaches them.
 - One sweep of the line is one arc of the sequence: 8 cycles at 18 cycles per minute, about 27 seconds.
 - **Only the big stars sound**, the ones with a diffraction cross, and **their height picks what they play**. There are two voices, chosen in the Music tab:
-  - **Harmonics** (default): one sine note with long reverb and delay. Height maps onto D major pentatonic from A4 at the bottom to D7 at the top (13 steps). Stars that ring within 1.5 seconds of each other always differ, the higher one on the higher note, so two stars stacked close together never repeat a note.
+  - **Harmonics** (default): one note per star, with long reverb and delay, shaped by what the star looks like:
+    - **height** picks the register on D major pentatonic, from A4 at the bottom to D7 at the top;
+    - **color** (core plus halo) shifts it: white stays, blue climbs two or three steps, red drops two. It also picks the timbre: blue rings bright with its octave, white and yellow a warm triangle, red a soft sine;
+    - **size** sets loudness and how long it rings;
+    - a star never repeats one of the last four notes: it takes the nearest free step, above if it sits higher than the star that played it, below if lower. Stars ringing within 1.5 seconds keep their vertical order.
   - **Piano chords**: a chord that starts an octave low and opens upward in 35 ms steps, with a soft sine halo. A star near the top plays the arc's opening chord and one near the bottom its resolution to D.
 - **Background pedal**: a low drone (filtered sawtooths on the root and fifth in octave 2, plus a sine an octave up), with long attack and release, retriggered with overlaps so it never breaks. It can be turned off in the Music tab.
 - **The nebula's color picks the pedal note.** After each render the page measures the dominant hue of the image (palette, hue shift, nebula type and painting all count). The hue wheel is split into six notes of D major, going up in fifths from red: red D, orange A, yellow E, green B, blue F#, violet G. All six sit under the harmonics without a clash; grey images keep D. When the color changes, the pedal crossfades to the new note, shown next to the timeline.

@@ -9785,9 +9785,13 @@ const MODEL = {
   const SWEEP_SECONDS=CICLOS_ARCO*60/CPM;
   const PIANO_SAMPLES='https://raw.githubusercontent.com/felixroos/dough-samples/main/piano.json';
   const CHORD_STEPS=6, HARMONIC_GAP=1;
-  // Height maps onto D major pentatonic from A4 (bottom) to D7 (top): 13 steps, about
-  // 66 px each. Stars that ring close together in time always differ, higher star higher
-  // note, even inside one step (see leadStep).
+  // Each big star's note comes from what it looks like:
+  //   - height picks the register on D major pentatonic, A4 (bottom) to D7 (top);
+  //   - color shifts it: white stays, blue climbs two or three steps, red drops two;
+  //   - color also picks the timbre (blue bright with its octave, white/yellow a warm
+  //     triangle, red a soft sine) and size sets loudness and ring time;
+  //   - a star never repeats any of the last four notes (within 12 s): it steps away
+  //     from the star that played it, up if it sits higher, down if lower.
   const HARMONIC_SCALE=['a4','b4','d5','e5','f#5','a5','b5','d6','e6','f#6','a6','b6','d7'], HARMONIC_GAIN=.07;
   const NEIGHBOUR_SECONDS=1.5;
   const PEDAL_STEP=3, PEDAL_LENGTH=4.6;
@@ -9828,7 +9832,7 @@ const MODEL = {
     return PEDAL_NOTES[Math.floor((((hue-PEDAL_RED+30)%360)+360)%360/60)%6];
   }
   const scan=document.getElementById('scan'), scanContext=scan.getContext ? scan.getContext('2d') : null;
-  const music={ready:null, playing:false, paused:0, start:0, lastX:0, lastTime:0, lastHarmonic:-Infinity, lastLead:null, nextPad:0, padCount:0, pedalNote:{name:'D', pc:2}, pedalFadeIn:false, volume:.8, harmonics:false, count:20, voice:'harmonic', pedal:true, nextPedal:0, patterns:null,
+  const music={ready:null, playing:false, paused:0, start:0, lastX:0, lastTime:0, lastHarmonic:-Infinity, lastLead:null, recentLeads:[], nextPad:0, padCount:0, pedalNote:{name:'D', pc:2}, pedalFadeIn:false, volume:.8, harmonics:false, count:20, voice:'harmonic', pedal:true, nextPedal:0, patterns:null,
     ringing:[], sounding:null, frame:0};
 
   function buildSequence(S) {
@@ -9893,17 +9897,43 @@ const MODEL = {
     const sounding=haps.find(hap=>hap.whole.begin.valueOf()<=cycle && hap.whole.end.valueOf()>cycle);
     return sounding || haps[0] || null;
   }
+  const colorShift=temp=>temp<-.15 ? -2 : temp<.12 ? 0 : temp<.3 ? 2 : 3;
+  const clampStep=step=>Math.max(0, Math.min(HARMONIC_SCALE.length-1, step));
   function leadStep(star, when) {
     const top=HARMONIC_SCALE.length-1;
-    let step=Math.round((1-star.y/MODEL.height)*top);
+    let step=clampStep(Math.round((1-star.y/MODEL.height)*top)+colorShift(star.temp));
     const last=music.lastLead;
-    if (last && when-last.when<NEIGHBOUR_SECONDS && star.y!==last.y) {
-      if (star.y<last.y && step<=last.step) step=last.step+1;
-      if (star.y>last.y && step>=last.step) step=last.step-1;
-      step=Math.max(0, Math.min(top, step));
+    if (last) {
+      const up=star.y<last.y || (star.y===last.y && star.temp>=last.temp);
+      // Close in time: keep the vertical order between the two stars.
+      if (when-last.when<NEIGHBOUR_SECONDS && star.y!==last.y) {
+        if (up && step<=last.step) step=last.step+1;
+        if (!up && step>=last.step) step=last.step-1;
+      }
     }
-    music.lastLead={y:star.y, step, when};
+    // Never one of the recent notes: take the nearest free step, first on the side away
+    // from the star that played it (up if this star sits higher, down if lower).
+    const recent=music.recentLeads.filter(lead=>when-lead.when<12).slice(-4);
+    const clash=recent.find(lead=>lead.step===step);
+    if (clash) {
+      const used=new Set(recent.map(lead=>lead.step));
+      const away=star.y<clash.y || (star.y===clash.y && star.temp>=clash.temp) ? 1 : -1;
+      for (let d=1; d<HARMONIC_SCALE.length; d++) {
+        const near=[step+away*d, step-away*d].find(c=>c>=0 && c<HARMONIC_SCALE.length && !used.has(c));
+        if (near!==undefined) { step=near; break; }
+      }
+    }
+    music.lastLead={y:star.y, temp:star.temp, step, when};
+    music.recentLeads=[...recent, music.lastLead];
     return step;
+  }
+  // Timbre from color, presence from size (Lagoon's big stars run from about 2 to 3.5).
+  function leadVoice(star) {
+    const presence=Math.max(0, Math.min(1, (star.size-1.8)/1.8));
+    const gain=HARMONIC_GAIN*(.65+.7*presence), release=2.4+2.4*presence;
+    if (star.temp>=.12) return [{s:'sine', gain, release}, {s:'sine', gain:gain*.35, release:release*.8, octave:12}];
+    if (star.temp<=-.15) return [{s:'sine', gain:gain*.9, release:release*1.2, cutoff:1400}];
+    return [{s:'triangle', gain:gain*.8, release, cutoff:2600}];
   }
   // The chord a big star plays: step `step` of the arc that contains `cycle`.
   function chordStep(pattern, cycle, step) {
@@ -9916,9 +9946,11 @@ const MODEL = {
     const at=(value, seconds, duration)=>S.superdough(value, when+seconds, duration).catch(()=>{});
     const band=Math.min(CHORD_STEPS-1, Math.floor(star.y/MODEL.height*CHORD_STEPS));
     if (star.role==='chord' && music.voice==='harmonic') {
-      at({note:HARMONIC_SCALE[leadStep(star, when)], s:'sine', attack:.01, decay:1.4, sustain:.05, release:3.5,
-        gain:HARMONIC_GAIN*v, pan:.25+.5*star.x/MODEL.width, room:.95, roomsize:12,
-        delay:.45, delaytime:.75, delayfeedback:.52, orbit:3}, 0, 1.5);
+      const note=HARMONIC_SCALE[leadStep(star, when)], octaveUp=name=>name.replace(/\d+$/, n=>Number(n)+1);
+      for (const {octave=0, gain, ...voice} of leadVoice(star)) {
+        at({...voice, note:octave ? octaveUp(note) : note, gain:gain*v, attack:.01, decay:1.4, sustain:.05,
+          pan:.25+.5*star.x/MODEL.width, room:.95, roomsize:12, delay:.45, delaytime:.75, delayfeedback:.52, orbit:3}, 0, 1.5);
+      }
     } else if (star.role==='chord') {
       const step=band;
       P.chord.forEach(({pattern, delay}, i)=>{
@@ -9950,6 +9982,12 @@ const MODEL = {
   function soundingStars() {
     const ranked=currentStars().entries.map(star=>({x:star[0], y:star[1],
       big:star[10]>0,
+      // Seen color: core plus halo, each weighted by its area. temp < 0 red, > 0 blue.
+      ...(()=>{
+        const w=star[2]*star[2], h=star[6]*star[6];
+        const r=star[3]*w+star[7]*h, g=star[4]*w+star[8]*h, b=star[5]*w+star[9]*h, top=Math.max(r,g,b,1e-6);
+        return {temp:(b-r)/top, size:star[2]};
+      })(),
       light:(star[3]+star[4]+star[5])/3*star[2]*star[2]+(star[10]>0 ? 400 : 0)}))
       .sort((a,b)=>b.light-a.light)
       .filter((star,i)=>star.big || (music.harmonics && i<music.count));
