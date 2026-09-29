@@ -50,6 +50,8 @@ figure{position:relative;margin:0;line-height:0;width:var(--plate)}
 #transport-time{flex:none;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:86px;text-align:right}
 .transport kbd{flex:none;font:inherit;font-size:11.5px;color:var(--faint);border:1px solid var(--line);border-radius:5px;padding:2px 6px}
 #music-status{font-size:12.5px;color:var(--muted)}
+.voice-choice{grid-template-columns:1fr 1fr}
+#pane-music .switch{margin-top:14px}
 @media (max-width:900px){:root{--plate:min(100%,calc(46svh*1536/859))}.transport kbd{display:none}}
 canvas{display:block;width:100%;height:auto;aspect-ratio:1536/859;background:#100e11;border-radius:3px;box-shadow:0 30px 80px -40px #000}
 canvas.placing{cursor:crosshair}
@@ -340,11 +342,17 @@ input[type=range]:disabled{cursor:not-allowed;opacity:.4}
 <section class="group" aria-labelledby="h-music">
 <h2 id="h-music">Music</h2>
 <div class="slider"><label for="volume">Volume</label><output id="volume-value" for="volume">80%</output><input id="volume" name="volume" type="range" min="0" max="100" step="5" value="80" disabled></div>
-<label class="switch">Soft harmonics from smaller stars<input id="harmonics" name="harmonics" type="checkbox" disabled></label>
+<h3>Big stars play</h3>
+<div class="segmented voice-choice" role="radiogroup" aria-label="Big stars play">
+<label class="pick"><input type="radio" name="voice" value="harmonic" checked disabled><span>Harmonics</span></label>
+<label class="pick"><input type="radio" name="voice" value="piano" disabled><span>Piano chords</span></label>
+</div>
+<label class="switch">Background pedal (low D drone)<input id="pedal" name="pedal" type="checkbox" checked disabled></label>
+<label class="switch">Small bright stars join in<input id="harmonics" name="harmonics" type="checkbox" disabled></label>
 </section>
 <section class="group" aria-labelledby="h-roles">
 <h2 id="h-roles">Who plays what</h2>
-<p class="note">Only the big stars, the ones with a diffraction cross, make sound. Each rings a piano chord, and its height picks which: near the top the arc's opening chord, near the bottom its resolution. Add spiked stars in the Stars tab to write more chords. One sweep of the line is one arc of the sequence, about 27 seconds. Play and pause with the button under the image or the space bar. Add or erase stars in the Stars tab to change the melody.</p>
+<p class="note">Only the big stars, the ones with a diffraction cross, make sound, and their height picks what: with Harmonics, a high star plays a higher note; with Piano chords, near the top the arc's opening chord and near the bottom its resolution. A low D pedal holds everything together. Add spiked stars in the Stars tab to write more notes. One sweep of the line is one arc of the sequence, about 27 seconds. Play and pause with the button under the image or the space bar. Add or erase stars in the Stars tab to change the melody.</p>
 </section>
 </div>
 
@@ -9510,6 +9518,8 @@ const MODEL = {
       case 'brush': brush=t.value; return syncUI();
       case 'volume': music.volume=Number(t.value)/100; setText('volume-value', t.value+'%'); return;
       case 'harmonics': music.harmonics=t.checked; refreshSounding(); return;
+      case 'voice': music.voice=t.value; return;
+      case 'pedal': music.pedal=t.checked; return;
       case 'brushSize': brushSize=Number(t.value); return syncUI();
       case 'brushFlow': brushFlow=Number(t.value); return syncUI();
       default: return;
@@ -9763,14 +9773,26 @@ const MODEL = {
   //     one near the bottom the resolution;
   //   - optionally, the brightest small stars add one soft high harmonic each, at most
   //     one per second (off by default).
+  // Big stars can instead play a single harmonic (the default voice): a sine from the
+  // harmonics pattern, one octave down, with height picking the note, high on top.
+  // Under everything runs a pedal: a low D drone, retriggered with overlaps so it
+  // never stops while the line moves.
   // Strudel builds and queries the patterns; superdough plays each event at an exact
   // audio time.
   const CPM=18, CICLOS_ARCO=8, DESPLIEGUE_MS=35, VOLUMEN=.30, HALO=.012, REVERB=.50;
   const SWEEP_SECONDS=CICLOS_ARCO*60/CPM;
   const PIANO_SAMPLES='https://raw.githubusercontent.com/felixroos/dough-samples/main/piano.json';
   const CHORD_STEPS=6, HARMONIC_GAP=1;
+  // The notes of the harmonics pattern (e7 f#7 a7 b7 c#8 d8) an octave down, high to low.
+  const HARMONIC_NOTES=['d7','c#7','b6','a6','f#6','e6'], HARMONIC_GAIN=.07;
+  const PEDAL_STEP=3, PEDAL_LENGTH=4.6;
+  const PEDAL=[
+    {note:'d2', s:'sawtooth', gain:.05, cutoff:380},
+    {note:'a2', s:'sawtooth', gain:.032, cutoff:480},
+    {note:'d3', s:'sine', gain:.04},
+  ];
   const scan=document.getElementById('scan'), scanContext=scan.getContext ? scan.getContext('2d') : null;
-  const music={ready:null, playing:false, paused:0, start:0, lastX:0, lastTime:0, lastHarmonic:-Infinity, volume:.8, harmonics:false, count:20, patterns:null,
+  const music={ready:null, playing:false, paused:0, start:0, lastX:0, lastTime:0, lastHarmonic:-Infinity, volume:.8, harmonics:false, count:20, voice:'harmonic', pedal:true, nextPedal:0, patterns:null,
     ringing:[], sounding:null, frame:0};
 
   function buildSequence(S) {
@@ -9843,8 +9865,13 @@ const MODEL = {
   function playStar(star, cycle, when) {
     const S=window.strudel, P=music.patterns, v=music.volume;
     const at=(value, seconds, duration)=>S.superdough(value, when+seconds, duration).catch(()=>{});
-    if (star.role==='chord') {
-      const step=Math.min(CHORD_STEPS-1, Math.floor(star.y/MODEL.height*CHORD_STEPS));
+    const band=Math.min(CHORD_STEPS-1, Math.floor(star.y/MODEL.height*CHORD_STEPS));
+    if (star.role==='chord' && music.voice==='harmonic') {
+      at({note:HARMONIC_NOTES[band], s:'sine', attack:.01, decay:1.4, sustain:.05, release:3.5,
+        gain:HARMONIC_GAIN*v, pan:.25+.5*star.x/MODEL.width, room:.95, roomsize:12,
+        delay:.45, delaytime:.75, delayfeedback:.52, orbit:3}, 0, 1.5);
+    } else if (star.role==='chord') {
+      const step=band;
       P.chord.forEach(({pattern, delay}, i)=>{
         const hap=chordStep(pattern, cycle, step);
         if (!hap) return;
@@ -9918,9 +9945,22 @@ const MODEL = {
   }
 
   const sweepX=elapsed=>(((elapsed%SWEEP_SECONDS)+SWEEP_SECONDS)%SWEEP_SECONDS)/SWEEP_SECONDS*MODEL.width;
+  // Pedal notes overlap by PEDAL_LENGTH - PEDAL_STEP seconds, so the drone is seamless;
+  // after a pause it fades out within one note.
+  function schedulePedal(now) {
+    if (!music.pedal) { music.nextPedal=now; return; }
+    const S=window.strudel;
+    while (music.nextPedal<now+.3) {
+      const when=Math.max(music.nextPedal, now+.02);
+      for (const voice of PEDAL) S.superdough({...voice, gain:voice.gain*music.volume, attack:1.8, decay:.1, sustain:1,
+        release:2.2, pan:.5, room:.7, roomsize:8, roomlp:2400, orbit:5}, when, PEDAL_LENGTH).catch(()=>{});
+      music.nextPedal=when+PEDAL_STEP;
+    }
+  }
   function tick() {
     if (!music.playing) return;
     const S=window.strudel, now=S.getAudioContext().currentTime;
+    schedulePedal(now);
     const elapsed=now-music.start, cycle=elapsed*CPM/60;
     const x=sweepX(elapsed);
     const wrapped=x<music.lastX;
@@ -9977,7 +10017,7 @@ const MODEL = {
     try { await ensureMusic(); }
     catch (error) { music.ready=null; setMusicStatus(error.message); return; }
     const now=window.strudel.getAudioContext().currentTime;
-    music.playing=true; music.start=now+.05-(music.paused||0);
+    music.playing=true; music.start=now+.05-(music.paused||0); music.nextPedal=now+.05;
     music.lastX=sweepX(music.paused||0); music.lastTime=music.start; music.sounding=null;
     syncPlayButtons(); setMusicStatus('');
     music.frame=requestAnimationFrame(tick);
