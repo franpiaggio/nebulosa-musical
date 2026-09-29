@@ -6,17 +6,16 @@ Everything from the original is still here (nebula types, transform, palettes, s
 
 ## The music
 
-Press **Play** (in the bottom bar or the Music tab). The first time it loads Strudel and a piano sample set from the internet, so it needs a connection.
+Press the round **play** button under the image, or the **space bar**, to play and pause. Pausing freezes the line where it is; playing again continues from there. The timeline next to the button shows where the line is in the arc, and clicking or dragging it jumps elsewhere (arrow keys work too when it has focus). The first play loads Strudel and a piano sample set from the internet, so it needs a connection.
 
 - One sweep of the line is one arc of the sequence: 8 cycles at 18 cycles per minute, about 27 seconds.
-- When the line crosses one of the brightest stars, that star plays what the sequence holds at that point of the arc:
-  - the brightest stars ring the **piano chord**, starting an octave low and opening upward in 35 ms steps, with a soft sine **halo** an octave up;
-  - the next ones play the **high harmonics** (sines with long reverb and delay);
-  - the rest play the **very high sparkles** (triangles).
+- **Only the big stars sound**, the ones with a diffraction cross. When the line crosses one, it rings a **piano chord** that starts an octave low and opens upward in 35 ms steps, with a soft sine **halo** an octave up.
+- **Height picks the chord.** Each arc has six chords; the image is split into six horizontal bands, so a star near the top plays the arc's opening chord and one near the bottom its resolution to D.
 - The star pulses and the line spikes like a signal at that height.
-- **Volume** sets the level; **Stars that sound** sets how many of the brightest stars take part (6 to 90). Adding or erasing stars in the Stars tab changes the melody.
+- In the Music tab: **Volume**, and **Soft harmonics from smaller stars** (off by default), which lets the brightest small stars add one high harmonic each, at most one per second.
+- Add or erase spiked stars in the Stars tab to write more chords.
 
-The sequence is the one in `buildSequence()`: twelve voicings in D, three openings, four cadences and two rhythms, picked at random each arc (`irand(...).segment(1)`), four voices with their own dynamics. Strudel builds the patterns and is queried at the star's position with `queryArc`; each event is played with `superdough` at an exact audio time, with the same envelopes, reverb, pan and delay as the original code. The harmonics and sparkles, which were a quiet shimmer under the chords, get a small lift (`SHIMMER_LIFT`) because a star plays them on their own.
+The sequence is the one in `buildSequence()`: twelve voicings in D, three openings, four cadences and two rhythms, picked at random each arc (`irand(...).segment(1)`), four voices with their own dynamics. Strudel builds the patterns and is queried at the star's position with `queryArc`; each event is played with `superdough` at an exact audio time, with the same envelopes, reverb, pan and delay as the original code.
 
 If the tab goes to the background the animation pauses; when it comes back, the stars the line skipped stay silent instead of all ringing at once.
 

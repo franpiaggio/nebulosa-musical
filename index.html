@@ -31,7 +31,26 @@ button,input{font:inherit;color:inherit}
 /* Layout: the plate takes the room, the panel sits beside it. */
 .app{display:grid;grid-template-columns:minmax(0,1fr) 348px;height:100svh}
 .stage{position:relative;display:grid;place-items:center;padding:24px;min-width:0;overflow:hidden}
-figure{position:relative;margin:0;line-height:0;width:min(100%,calc((100svh - 48px)*1536/859))}
+/* The plate and the transport bar below it share one width. */
+:root{--plate:min(100%,calc((100svh - 108px)*1536/859))}
+.stage{grid-template-rows:auto auto;align-content:center;gap:12px}
+figure{position:relative;margin:0;line-height:0;width:var(--plate)}
+.transport{width:var(--plate);display:flex;align-items:center;gap:14px;padding:0 2px}
+.play-toggle{flex:none;width:44px;height:44px;border-radius:50%;border:0;display:grid;place-items:center;background:var(--halpha);color:var(--halpha-ink);cursor:pointer}
+.play-toggle:hover{background:#f4a5b1}
+.play-toggle:disabled{opacity:.45;cursor:wait}
+.play-toggle svg{width:18px;height:18px;fill:currentColor}
+.play-toggle .pause-icon,.play-toggle.is-playing .play-icon{display:none}
+.play-toggle.is-playing .pause-icon{display:block}
+.timeline{position:relative;flex:1;height:28px;cursor:pointer;touch-action:none}
+.timeline::before{content:"";position:absolute;left:0;right:0;top:13px;height:2px;border-radius:2px;background:var(--line)}
+#timeline-fill{position:absolute;left:0;top:13px;height:2px;border-radius:2px;background:#fff;width:0}
+#timeline-head{position:absolute;top:6px;width:2px;height:16px;margin-left:-1px;background:#fff;box-shadow:0 0 8px #fff;left:0}
+.timeline:focus-visible{outline:2px solid var(--halpha);outline-offset:4px;border-radius:4px}
+#transport-time{flex:none;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:86px;text-align:right}
+.transport kbd{flex:none;font:inherit;font-size:11.5px;color:var(--faint);border:1px solid var(--line);border-radius:5px;padding:2px 6px}
+#music-status{font-size:12.5px;color:var(--muted)}
+@media (max-width:900px){:root{--plate:min(100%,calc(46svh*1536/859))}.transport kbd{display:none}}
 canvas{display:block;width:100%;height:auto;aspect-ratio:1536/859;background:#100e11;border-radius:3px;box-shadow:0 30px 80px -40px #000}
 canvas.placing{cursor:crosshair}
 canvas.painting{cursor:none;touch-action:none}
@@ -210,6 +229,16 @@ input[type=range]:disabled{cursor:not-allowed;opacity:.4}
 </g>
 </svg>
 </figure>
+<div class="transport" aria-label="Playback">
+<button id="transport-play" class="play-toggle" type="button" aria-label="Play" aria-pressed="false" disabled>
+<svg class="play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>
+<svg class="pause-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h4.5v16H6zM13.5 4H18v16h-4.5z"/></svg>
+</button>
+<div id="timeline" class="timeline" role="slider" tabindex="0" aria-label="Position in the arc" aria-valuemin="0" aria-valuemax="27" aria-valuenow="0"><div id="timeline-fill"></div><div id="timeline-head"></div></div>
+<span id="transport-time">0:00 / 0:27</span>
+<kbd title="Space bar plays and pauses">Space</kbd>
+<span id="music-status" role="status"></span>
+</div>
 </main>
 
 <form id="panel" aria-busy="true" aria-label="Controls">
@@ -310,13 +339,12 @@ input[type=range]:disabled{cursor:not-allowed;opacity:.4}
 <div id="pane-music" role="tabpanel" aria-labelledby="tab-music" hidden>
 <section class="group" aria-labelledby="h-music">
 <h2 id="h-music">Music</h2>
-<div class="row"><button class="btn primary" type="button" data-action="play" aria-pressed="false" disabled>Play</button><span id="music-status" class="note" role="status"></span></div>
 <div class="slider"><label for="volume">Volume</label><output id="volume-value" for="volume">80%</output><input id="volume" name="volume" type="range" min="0" max="100" step="5" value="80" disabled></div>
-<div class="slider"><label for="sounding">Stars that sound</label><output id="sounding-value" for="sounding">36</output><input id="sounding" name="sounding" type="range" min="6" max="90" step="1" value="36" disabled></div>
+<label class="switch">Soft harmonics from smaller stars<input id="harmonics" name="harmonics" type="checkbox" disabled></label>
 </section>
 <section class="group" aria-labelledby="h-roles">
 <h2 id="h-roles">Who plays what</h2>
-<p class="note">The brightest stars ring the piano chord, the next ones the high harmonics, the rest the sparkles. One sweep of the line is one arc of the sequence, about 27 seconds. Add or erase stars in the Stars tab to change the melody.</p>
+<p class="note">Only the big stars, the ones with a diffraction cross, make sound. Each rings a piano chord, and its height picks which: near the top the arc's opening chord, near the bottom its resolution. Add spiked stars in the Stars tab to write more chords. One sweep of the line is one arc of the sequence, about 27 seconds. Play and pause with the button under the image or the space bar. Add or erase stars in the Stars tab to change the melody.</p>
 </section>
 </div>
 
@@ -347,9 +375,8 @@ input[type=range]:disabled{cursor:not-allowed;opacity:.4}
 <label><input type="checkbox" name="layer" value="grain" checked disabled>Grain</label>
 </div>
 <div class="row">
-<button class="btn primary" type="button" data-action="play" aria-pressed="false" disabled>Play</button>
 <button class="btn" type="button" data-action="surprise" disabled>Surprise me</button>
-<button class="btn" type="button" data-action="save" disabled>Save PNG</button>
+<button class="btn primary" type="button" data-action="save" disabled>Save PNG</button>
 </div>
 <button class="btn quiet reset" type="button" data-action="reset" disabled>Back to the original Lagoon</button>
 </div>
@@ -9277,6 +9304,7 @@ const MODEL = {
       panel.removeAttribute('aria-busy');
       panel.querySelectorAll('input,button').forEach(el=>el.disabled=false);
       syncUI();
+      transportPlay.disabled=false;
       canvas.dataset.ready='true';
       canvas.dataset.renderMs=Math.round(performance.now()-START);
     }
@@ -9481,7 +9509,7 @@ const MODEL = {
       case 'toolKind': toolKind=t.value; return syncUI();
       case 'brush': brush=t.value; return syncUI();
       case 'volume': music.volume=Number(t.value)/100; setText('volume-value', t.value+'%'); return;
-      case 'sounding': music.count=Number(t.value); setText('sounding-value', t.value); refreshSounding(); return;
+      case 'harmonics': music.harmonics=t.checked; refreshSounding(); return;
       case 'brushSize': brushSize=Number(t.value); return syncUI();
       case 'brushFlow': brushFlow=Number(t.value); return syncUI();
       default: return;
@@ -9495,7 +9523,6 @@ const MODEL = {
   const actions={
     reroll() { options.seed=1+Math.floor(Math.random()*9999); syncUI(); redraw(); },
     tab(button) { setTab(button.dataset.tab); },
-    play() { togglePlay(); },
     paintUndo() {
       if (!paintHistory.length) return;
       paintMask=paintHistory.pop(); paintChanged();
@@ -9729,18 +9756,21 @@ const MODEL = {
   // MUSIC
   // A white scan line sweeps the plate from left to right. One sweep lasts one arc of
   // the Strudel sequence below (8 cycles at 18 cpm, about 27 s). When the line crosses
-  // one of the brightest stars, that star plays what the sequence holds at that moment:
-  // the brightest ring the piano chord with its low start and the sine halo, the next
-  // ones the high harmonics, the rest the very high sparkles. Strudel builds and
-  // queries the patterns; superdough plays each event at an exact audio time.
+  // a star that sounds:
+  //   - only the big stars, the ones with a diffraction cross, ring a piano chord with
+  //     its low start and sine halo. Their height picks the chord: the arc's six chords
+  //     are stacked top to bottom, so a star near the top plays the opening chord and
+  //     one near the bottom the resolution;
+  //   - optionally, the brightest small stars add one soft high harmonic each, at most
+  //     one per second (off by default).
+  // Strudel builds and queries the patterns; superdough plays each event at an exact
+  // audio time.
   const CPM=18, CICLOS_ARCO=8, DESPLIEGUE_MS=35, VOLUMEN=.30, HALO=.012, REVERB=.50;
   const SWEEP_SECONDS=CICLOS_ARCO*60/CPM;
   const PIANO_SAMPLES='https://raw.githubusercontent.com/felixroos/dough-samples/main/piano.json';
-  // Sparkles and harmonics are mixed as a quiet shimmer in the original sequence; a star
-  // hit plays them alone, so they get a small lift to stay audible.
-  const SHIMMER_LIFT=2;
+  const CHORD_STEPS=6, HARMONIC_GAP=1;
   const scan=document.getElementById('scan'), scanContext=scan.getContext ? scan.getContext('2d') : null;
-  const music={ready:null, playing:false, start:0, lastX:0, lastTime:0, volume:.8, count:36, patterns:null,
+  const music={ready:null, playing:false, paused:0, start:0, lastX:0, lastTime:0, lastHarmonic:-Infinity, volume:.8, harmonics:false, count:20, patterns:null,
     ringing:[], sounding:null, frame:0};
 
   function buildSequence(S) {
@@ -9781,6 +9811,9 @@ const MODEL = {
 
   async function ensureMusic() {
     if (!music.ready) music.ready=(async ()=>{
+      // The Strudel script loads async; give it up to 15 s before giving up.
+      for (let waited=0; !(window.strudel && window.initStrudel) && waited<15000; waited+=200)
+        await new Promise(resolve=>setTimeout(resolve, 200));
       const S=window.strudel;
       if (!S || !window.initStrudel) throw new Error('Strudel did not load. Check your connection and reload.');
       await window.initStrudel({prebake:()=>S.samples(PIANO_SAMPLES)});
@@ -9801,12 +9834,19 @@ const MODEL = {
     const sounding=haps.find(hap=>hap.whole.begin.valueOf()<=cycle && hap.whole.end.valueOf()>cycle);
     return sounding || haps[0] || null;
   }
-  function playStar(role, cycle, when, brightness) {
+  // The chord a big star plays: step `step` of the arc that contains `cycle`.
+  function chordStep(pattern, cycle, step) {
+    const arc=Math.floor(cycle/CICLOS_ARCO)*CICLOS_ARCO;
+    const haps=firstHap(pattern, arc, arc+CICLOS_ARCO).filter(hap=>hap.whole.begin.valueOf()>=arc-1e-9);
+    return haps[Math.min(step, haps.length-1)] || null;
+  }
+  function playStar(star, cycle, when) {
     const S=window.strudel, P=music.patterns, v=music.volume;
     const at=(value, seconds, duration)=>S.superdough(value, when+seconds, duration).catch(()=>{});
-    if (role==='chord') {
+    if (star.role==='chord') {
+      const step=Math.min(CHORD_STEPS-1, Math.floor(star.y/MODEL.height*CHORD_STEPS));
       P.chord.forEach(({pattern, delay}, i)=>{
-        const hap=eventAt(pattern, cycle);
+        const hap=chordStep(pattern, cycle, step);
         if (!hap) return;
         const length=(hap.whole.end.valueOf()-hap.whole.begin.valueOf())*60/CPM;
         at({...hap.value, gain:hap.value.gain*v, s:'piano', pan:.34+i*.08, attack:.008, decay:1.8, sustain:.25,
@@ -9814,24 +9854,31 @@ const MODEL = {
           delay*DESPLIEGUE_MS/1000, Math.min(4, length*.75));
       });
       P.halo.forEach(pattern=>{
-        const hap=eventAt(pattern, cycle);
+        const hap=chordStep(pattern, cycle, step);
         if (hap) at({note:hap.value.note, s:'sine', gain:HALO*v, attack:1, decay:.8, sustain:.45, release:.7,
           pan:.58, room:.65, roomsize:4, roomfade:3, roomlp:3200, orbit:2}, 0, 3);
       });
     } else {
-      const hap=eventAt(role==='harmonic' ? P.armonicos : P.destellos, cycle);
-      if (hap) at({...hap.value, gain:hap.value.gain*v*SHIMMER_LIFT*(.7+.6*brightness)}, 0, 1.5);
+      // Harmonics stay sparse: at most one per HARMONIC_GAP seconds, at the original level.
+      if (when-music.lastHarmonic<HARMONIC_GAP) return false;
+      const hap=eventAt(P.armonicos, cycle);
+      if (!hap) return false;
+      music.lastHarmonic=when;
+      at({...hap.value, gain:hap.value.gain*v}, 0, 1.5);
     }
+    return true;
   }
 
-  // The stars that sound: the brightest by total light (peak × area), split by rank.
+  // The stars that sound: every star with a diffraction cross plays chords; with
+  // harmonics on, the brightest small stars (up to `count`) join in.
   function soundingStars() {
     const ranked=currentStars().entries.map(star=>({x:star[0], y:star[1],
+      big:star[10]>0,
       light:(star[3]+star[4]+star[5])/3*star[2]*star[2]+(star[10]>0 ? 400 : 0)}))
-      .sort((a,b)=>b.light-a.light).slice(0, music.count);
+      .sort((a,b)=>b.light-a.light)
+      .filter((star,i)=>star.big || (music.harmonics && i<music.count));
     const top=ranked.length ? ranked[0].light : 1;
-    return ranked.map((star,i)=>({...star, brightness:Math.min(1,star.light/top),
-      role:i<Math.max(2,Math.round(ranked.length*.15)) ? 'chord' : i<Math.round(ranked.length*.45) ? 'harmonic' : 'sparkle'}));
+    return ranked.map(star=>({...star, brightness:Math.min(1,star.light/top), role:star.big ? 'chord' : 'harmonic'}));
   }
 
   // The line is drawn as a signal trace: a quiet wobble everywhere, plus a spike where
@@ -9870,11 +9917,12 @@ const MODEL = {
     music.ringing=music.ringing.filter(ring=>time-ring.time<1.6);
   }
 
+  const sweepX=elapsed=>(((elapsed%SWEEP_SECONDS)+SWEEP_SECONDS)%SWEEP_SECONDS)/SWEEP_SECONDS*MODEL.width;
   function tick() {
     if (!music.playing) return;
     const S=window.strudel, now=S.getAudioContext().currentTime;
     const elapsed=now-music.start, cycle=elapsed*CPM/60;
-    const x=(elapsed%SWEEP_SECONDS)/SWEEP_SECONDS*MODEL.width;
+    const x=sweepX(elapsed);
     const wrapped=x<music.lastX;
     if (!music.sounding || wrapped) music.sounding=soundingStars();
     // A background tab pauses animation frames while audio time keeps running; after
@@ -9886,38 +9934,92 @@ const MODEL = {
       if (!crossed) continue;
       // Cycle at the star's own position, so the music follows the line exactly.
       const starCycle=Math.floor(cycle/CICLOS_ARCO)*CICLOS_ARCO+star.x/MODEL.width*CICLOS_ARCO;
-      playStar(star.role, starCycle, now+.06, star.brightness);
-      music.ringing.push({x:star.x, y:star.y, time:now, brightness:star.brightness});
+      if (playStar(star, starCycle, now+.06)) music.ringing.push({x:star.x, y:star.y, time:now, brightness:star.brightness});
     }
     music.lastX=x;
     drawScan(x, now);
+    syncTimeline(elapsed);
     music.frame=requestAnimationFrame(tick);
   }
 
+  // TRANSPORT
+  // Play and pause keep the position in the arc; the timeline shows it and seeks.
+  const transportPlay=document.getElementById('transport-play'), timeline=document.getElementById('timeline');
+  const clock=seconds=>Math.floor(seconds/60)+':'+String(Math.floor(seconds%60)).padStart(2,'0');
+  function syncTimeline(elapsed) {
+    const within=((elapsed%SWEEP_SECONDS)+SWEEP_SECONDS)%SWEEP_SECONDS, share=within/SWEEP_SECONDS*100;
+    const fill=document.getElementById('timeline-fill'), head=document.getElementById('timeline-head');
+    if (fill) fill.style.width=share+'%';
+    if (head) head.style.left=share+'%';
+    timeline.setAttribute('aria-valuenow', String(Math.round(within)));
+    setText('transport-time', clock(within)+' / '+clock(Math.round(SWEEP_SECONDS)));
+  }
   function setMusicStatus(text) { setText('music-status', text); }
   function syncPlayButtons() {
-    panel.querySelectorAll('[data-action="play"]').forEach(button=>{
-      button.textContent=music.playing ? 'Stop' : 'Play';
-      button.setAttribute('aria-pressed', String(music.playing));
-    });
-    scan.hidden=!music.playing;
+    transportPlay.classList.toggle('is-playing', music.playing);
+    transportPlay.setAttribute('aria-pressed', String(music.playing));
+    transportPlay.setAttribute('aria-label', music.playing ? 'Pause' : 'Play');
+    scan.hidden=!music.playing && !music.paused;
+  }
+  function currentElapsed() {
+    return music.playing ? window.strudel.getAudioContext().currentTime-music.start : music.paused;
   }
   async function togglePlay() {
     if (music.playing) {
+      music.paused=currentElapsed();
       music.playing=false; cancelAnimationFrame(music.frame);
-      if (scanContext) scanContext.clearRect(0,0,MODEL.width,MODEL.height);
+      music.ringing=[];
+      drawScan(sweepX(music.paused), 0);
       syncPlayButtons(); setMusicStatus('');
       return;
     }
     setMusicStatus('Loading Strudel and the piano…');
     try { await ensureMusic(); }
     catch (error) { music.ready=null; setMusicStatus(error.message); return; }
-    const S=window.strudel;
-    music.playing=true; music.start=S.getAudioContext().currentTime+.1; music.lastX=0; music.sounding=null;
-    music.lastTime=music.start;
+    const now=window.strudel.getAudioContext().currentTime;
+    music.playing=true; music.start=now+.05-(music.paused||0);
+    music.lastX=sweepX(music.paused||0); music.lastTime=music.start; music.sounding=null;
     syncPlayButtons(); setMusicStatus('');
     music.frame=requestAnimationFrame(tick);
   }
+  // Seeking moves the line without ringing the stars in between.
+  function seek(share) {
+    const elapsed=Math.max(0,Math.min(.999,share))*SWEEP_SECONDS;
+    if (music.playing) {
+      const now=window.strudel.getAudioContext().currentTime;
+      music.start=now-elapsed; music.lastX=sweepX(elapsed); music.lastTime=now;
+    } else {
+      music.paused=elapsed;
+      syncPlayButtons();
+      drawScan(sweepX(elapsed), 0);
+    }
+    syncTimeline(elapsed);
+  }
+  transportPlay.addEventListener('click', ()=>{ if (ready) togglePlay(); });
+  let seeking=false;
+  const seekTo=event=>{ const box=timeline.getBoundingClientRect(); seek((event.clientX-box.left)/box.width); };
+  timeline.addEventListener('pointerdown', event=>{ if (!ready) return; seeking=true; timeline.setPointerCapture(event.pointerId); seekTo(event); });
+  timeline.addEventListener('pointermove', event=>{ if (seeking) seekTo(event); });
+  timeline.addEventListener('pointerup', ()=>{ seeking=false; });
+  timeline.addEventListener('keydown', event=>{
+    if (event.key!=='ArrowLeft' && event.key!=='ArrowRight') return;
+    event.preventDefault();
+    seek((currentElapsed()+(event.key==='ArrowRight' ? 1 : -1))/SWEEP_SECONDS);
+  });
+  // The space bar plays and pauses from anywhere except text fields. It is handled on
+  // the way down and swallowed on the way up, so a focused button or radio does not
+  // also react to it.
+  const typing=target=>target && (target.isContentEditable || /^(TEXTAREA|SELECT)$/.test(target.tagName) ||
+    (target.tagName==='INPUT' && /^(text|search|email|number|password|url|tel)$/.test(target.type)));
+  document.addEventListener('keydown', event=>{
+    if (event.code!=='Space' || typing(event.target)) return;
+    event.preventDefault();
+    if (!event.repeat && ready) togglePlay();
+  }, true);
+  document.addEventListener('keyup', event=>{
+    if (event.code==='Space' && !typing(event.target)) event.preventDefault();
+  }, true);
+
   // Star edits change which stars sound on the next frame.
   function refreshSounding() { music.sounding=null; }
 
