@@ -50,6 +50,7 @@ figure{position:relative;margin:0;line-height:0;width:var(--plate)}
 #transport-time{flex:none;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:86px;text-align:right}
 .transport kbd{flex:none;font:inherit;font-size:11.5px;color:var(--faint);border:1px solid var(--line);border-radius:5px;padding:2px 6px}
 #music-status{font-size:12.5px;color:var(--muted)}
+#pedal-note{flex:none;font-size:12.5px;color:var(--text);border:1px solid var(--line);border-radius:99px;padding:3px 10px;font-variant-numeric:tabular-nums}
 .voice-choice{grid-template-columns:1fr 1fr}
 #pane-music .switch{margin-top:14px}
 @media (max-width:900px){:root{--plate:min(100%,calc(46svh*1536/859))}.transport kbd{display:none}}
@@ -238,6 +239,7 @@ input[type=range]:disabled{cursor:not-allowed;opacity:.4}
 </button>
 <div id="timeline" class="timeline" role="slider" tabindex="0" aria-label="Position in the arc" aria-valuemin="0" aria-valuemax="27" aria-valuenow="0"><div id="timeline-fill"></div><div id="timeline-head"></div></div>
 <span id="transport-time">0:00 / 0:27</span>
+<span id="pedal-note" title="Pedal note, picked by the nebula's color">D pedal</span>
 <kbd title="Space bar plays and pauses">Space</kbd>
 <span id="music-status" role="status"></span>
 </div>
@@ -347,7 +349,7 @@ input[type=range]:disabled{cursor:not-allowed;opacity:.4}
 <label class="pick"><input type="radio" name="voice" value="harmonic" checked disabled><span>Harmonics</span></label>
 <label class="pick"><input type="radio" name="voice" value="piano" disabled><span>Piano chords</span></label>
 </div>
-<label class="switch">Background pedal (low D drone)<input id="pedal" name="pedal" type="checkbox" checked disabled></label>
+<label class="switch">Background pedal (its note follows the nebula's color)<input id="pedal" name="pedal" type="checkbox" checked disabled></label>
 <label class="switch">Small bright stars join in<input id="harmonics" name="harmonics" type="checkbox" disabled></label>
 </section>
 <section class="group" aria-labelledby="h-roles">
@@ -9299,7 +9301,7 @@ const MODEL = {
   let layerInfo=null;
   function receive(pixels, id, info) {
     busy=false;
-    if (id === sequence) { paint(pixels); layerInfo=info||null; drawBox(); }
+    if (id === sequence) { paint(pixels); layerInfo=info||null; drawBox(); updatePedal(pixels); }
     if (id>=clearPreviewAt && previewContext) { previewContext.clearRect(0,0,MODEL.width,MODEL.height); clearPreviewAt=Infinity; }
     if (pending) { pending=false; redraw(); }
     else { clearTimeout(busyTimer); busyBadge.hidden=true; }
@@ -9786,13 +9788,34 @@ const MODEL = {
   // The notes of the harmonics pattern (e7 f#7 a7 b7 c#8 d8) an octave down, high to low.
   const HARMONIC_NOTES=['d7','c#7','b6','a6','f#6','e6'], HARMONIC_GAIN=.07;
   const PEDAL_STEP=3, PEDAL_LENGTH=4.6;
+  // The pedal is a root, its fifth and its octave; `interval` is in semitones.
   const PEDAL=[
-    {note:'d2', s:'sawtooth', gain:.05, cutoff:380},
-    {note:'a2', s:'sawtooth', gain:.032, cutoff:480},
-    {note:'d3', s:'sine', gain:.04},
+    {interval:0, s:'sawtooth', gain:.05, cutoff:380},
+    {interval:7, s:'sawtooth', gain:.032, cutoff:480},
+    {interval:12, s:'sine', gain:.04},
   ];
+  // The nebula's color picks the pedal note. The hue wheel is split into six notes of
+  // D major going up in fifths, starting at red: red D, orange A, yellow E, green B,
+  // blue F#, violet G, then back to red. All six sit under the harmonics without a
+  // clash. Grey images (Mono) keep D.
+  const PEDAL_NOTES=[{name:'D', pc:2},{name:'A', pc:9},{name:'E', pc:4},{name:'B', pc:11},{name:'F#', pc:6},{name:'G', pc:7}];
+  const PEDAL_RED=345;
+  function pedalFromPixels(pixels) {
+    let x=0, y=0, weight=0;
+    for (let i=0;i<pixels.length;i+=4*9) {
+      const r=pixels[i], g=pixels[i+1], b=pixels[i+2];
+      const max=Math.max(r,g,b), chroma=max-Math.min(r,g,b);
+      if (chroma<12) continue;
+      // Hue as an angle, weighted by chroma so vivid gas counts and grey sky does not.
+      const angle=Math.atan2(Math.sqrt(3)*(g-b), 2*r-g-b);
+      x+=Math.cos(angle)*chroma; y+=Math.sin(angle)*chroma; weight+=chroma;
+    }
+    if (weight===0 || Math.hypot(x,y)/weight<.2) return PEDAL_NOTES[0];
+    const hue=(Math.atan2(y,x)*180/Math.PI+360)%360;
+    return PEDAL_NOTES[Math.floor((((hue-PEDAL_RED+30)%360)+360)%360/60)%6];
+  }
   const scan=document.getElementById('scan'), scanContext=scan.getContext ? scan.getContext('2d') : null;
-  const music={ready:null, playing:false, paused:0, start:0, lastX:0, lastTime:0, lastHarmonic:-Infinity, volume:.8, harmonics:false, count:20, voice:'harmonic', pedal:true, nextPedal:0, patterns:null,
+  const music={ready:null, playing:false, paused:0, start:0, lastX:0, lastTime:0, lastHarmonic:-Infinity, pedalNote:{name:'D', pc:2}, volume:.8, harmonics:false, count:20, voice:'harmonic', pedal:true, nextPedal:0, patterns:null,
     ringing:[], sounding:null, frame:0};
 
   function buildSequence(S) {
@@ -9952,7 +9975,8 @@ const MODEL = {
     const S=window.strudel;
     while (music.nextPedal<now+.3) {
       const when=Math.max(music.nextPedal, now+.02);
-      for (const voice of PEDAL) S.superdough({...voice, gain:voice.gain*music.volume, attack:1.8, decay:.1, sustain:1,
+      const root=36+music.pedalNote.pc;
+      for (const {interval, ...voice} of PEDAL) S.superdough({...voice, note:root+interval, gain:voice.gain*music.volume, attack:1.8, decay:.1, sustain:1,
         release:2.2, pan:.5, room:.7, roomsize:8, roomlp:2400, orbit:5}, when, PEDAL_LENGTH).catch(()=>{});
       music.nextPedal=when+PEDAL_STEP;
     }
@@ -10060,6 +10084,14 @@ const MODEL = {
     if (event.code==='Space' && !typing(event.target)) event.preventDefault();
   }, true);
 
+  // A new color moves the pedal at once: the old notes fade out as the new ones swell.
+  function updatePedal(pixels) {
+    const next=pedalFromPixels(pixels);
+    setText('pedal-note', next.name+' pedal');
+    if (next.pc===music.pedalNote.pc) return;
+    music.pedalNote=next;
+    if (music.playing) music.nextPedal=0;
+  }
   // Star edits change which stars sound on the next frame.
   function refreshSounding() { music.sounding=null; }
 

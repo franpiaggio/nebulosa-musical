@@ -12,7 +12,8 @@ Press the round **play** button under the image, or the **space bar**, to play a
 - **Only the big stars sound**, the ones with a diffraction cross, and **their height picks what they play**. There are two voices, chosen in the Music tab:
   - **Harmonics** (default): one sine note from the harmonics pattern of the sequence, an octave down (E6 to D7), with long reverb and delay. The image is split into six bands, and a higher star plays a higher note.
   - **Piano chords**: a chord that starts an octave low and opens upward in 35 ms steps, with a soft sine halo. A star near the top plays the arc's opening chord and one near the bottom its resolution to D.
-- **Background pedal**: a low D drone (filtered sawtooths on D2 and A2 plus a sine on D3), with long attack and release, retriggered with overlaps so it never breaks. It can be turned off in the Music tab.
+- **Background pedal**: a low drone (filtered sawtooths on the root and fifth in octave 2, plus a sine an octave up), with long attack and release, retriggered with overlaps so it never breaks. It can be turned off in the Music tab.
+- **The nebula's color picks the pedal note.** After each render the page measures the dominant hue of the image (palette, hue shift, nebula type and painting all count). The hue wheel is split into six notes of D major, going up in fifths from red: red D, orange A, yellow E, green B, blue F#, violet G. All six sit under the harmonics without a clash; grey images keep D. When the color changes, the pedal crossfades to the new note, shown next to the timeline.
 - The star pulses and the line spikes like a signal at that height.
 - In the Music tab: **Volume**, the voice, the pedal, and **Small bright stars join in** (off by default), which lets the brightest small stars add one high harmonic each, at most one per second.
 - Add or erase spiked stars in the Stars tab to write more notes.
