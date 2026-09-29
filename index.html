@@ -56,7 +56,7 @@ figure{position:relative;margin:0;line-height:0;width:var(--plate)}
 .field select:hover{border-color:var(--muted)}
 .field select:disabled{opacity:.45;cursor:wait}
 #pedal-note{flex:none;font-size:12.5px;color:var(--text);border:1px solid var(--line);border-radius:99px;padding:3px 10px;font-variant-numeric:tabular-nums}
-.voice-choice{grid-template-columns:1fr 1fr}
+.voice-choice{grid-template-columns:1fr 1fr 1fr}
 #pane-music .switch{margin-top:14px}
 @media (max-width:900px){:root{--plate:min(100%,calc(46svh*1536/859))}.transport kbd{display:none}}
 canvas{display:block;width:100%;height:auto;aspect-ratio:1536/859;background:#100e11;border-radius:3px;box-shadow:0 30px 80px -40px #000}
@@ -358,6 +358,7 @@ input[type=range]:disabled{cursor:not-allowed;opacity:.4}
 <h3>Big stars play</h3>
 <div class="segmented voice-choice" role="radiogroup" aria-label="Big stars play">
 <label class="pick"><input type="radio" name="voice" value="harmonic" checked disabled><span>Harmonics</span></label>
+<label class="pick"><input type="radio" name="voice" value="pianoNote" disabled><span>Piano notes</span></label>
 <label class="pick"><input type="radio" name="voice" value="piano" disabled><span>Piano chords</span></label>
 </div>
 <label class="switch">Background pedal<input id="pedal" name="pedal" type="checkbox" checked disabled></label>
@@ -10002,7 +10003,14 @@ const MODEL = {
     const S=window.strudel, P=music.patterns, v=music.volume;
     const at=(value, seconds, duration)=>S.superdough(value, when+seconds, duration).catch(()=>{});
     const band=Math.min(CHORD_STEPS-1, Math.floor(star.y/MODEL.height*CHORD_STEPS));
-    if (star.role==='chord' && music.voice==='harmonic') {
+    if (music.voice==='pianoNote') {
+      // One piano note per star, chosen like the harmonics (height, color, no repeats);
+      // size sets how hard it is struck and how long it rings.
+      const presence=Math.max(0, Math.min(1, (star.size-1.8)/1.8));
+      at({note:leadNotes[leadStep(star, when)], s:'piano', gain:(.22+.2*presence)*v, velocity:.55+.35*presence,
+        attack:.005, decay:2.2, sustain:.15, release:1.2+1.6*presence, pan:.25+.5*star.x/MODEL.width,
+        room:.55, roomsize:6, roomfade:2.8, roomlp:3600, delay:.18, delaytime:.55, delayfeedback:.25, orbit:1}, 0, 2.5);
+    } else if (star.role==='chord' && music.voice==='harmonic') {
       const note=leadNotes[leadStep(star, when)];
       for (const {octave=0, gain, ...voice} of leadVoice(star)) {
         at({...voice, note:note+octave, gain:gain*v, attack:.01, decay:1.4, sustain:.05,
@@ -10189,6 +10197,9 @@ const MODEL = {
     setMusicStatus('Loading Strudel and the piano…');
     try { await ensureMusic(); }
     catch (error) { music.ready=null; setMusicStatus(error.message); return; }
+    // Every play comes from a click or key press, so resume here too: a context that
+    // stayed suspended from an earlier attempt would otherwise freeze the clock.
+    window.strudel.getAudioContext().resume();
     const now=window.strudel.getAudioContext().currentTime;
     const intro=music.paused ? 0 : INTRO_SECONDS;
     music.playing=true; music.start=now+.05+intro-(music.paused||0); music.nextPedal=now+.05; music.pedalFadeIn=true; music.nextPad=now;

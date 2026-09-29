@@ -10,12 +10,13 @@ Press the round **play** button under the image, or the **space bar**, to play a
 
 - Play starts gently: the pedal swells in alone while the line waits three seconds off the left edge, then the stars join one by one as the line reaches them.
 - One sweep of the line is one arc of the sequence: 8 cycles at 18 cycles per minute, about 27 seconds.
-- **The most luminous stars sound**, ranked by total light (core plus halo): by default the top 14, adjustable with **Stars that sound**. In the Lagoon the ten stars with a diffraction cross come first, then the large round ones, which ring softer because presence follows size. There are two voices, chosen in the Music tab:
+- **The most luminous stars sound**, ranked by total light (core plus halo): by default the top 14, adjustable with **Stars that sound**. In the Lagoon the ten stars with a diffraction cross come first, then the large round ones, which ring softer because presence follows size. There are three voices, chosen in the Music tab:
   - **Harmonics** (default): one note per star, with long reverb and delay, shaped by what the star looks like:
     - **height** picks the register on the chosen scale, from A4 at the bottom to D7 at the top;
     - **color** (core plus halo) shifts it: white stays, blue climbs two or three steps, red drops two. It also picks the timbre: blue rings bright with its octave, white and yellow a warm triangle, red a soft sine;
     - **size** sets loudness and how long it rings;
     - a star never repeats one of the last four notes: it takes the nearest free step, above if it sits higher than the star that played it, below if lower. Stars ringing within 1.5 seconds keep their vertical order.
+  - **Piano notes**: one piano note per star, chosen exactly like the harmonics (height, color, scale, no recent repeats); bigger stars strike harder and ring longer.
   - **Piano chords**: a chord that starts an octave low and opens upward in 35 ms steps, with a soft sine halo. A star near the top plays the arc's opening chord and one near the bottom its resolution to D.
 - **Background pedal**: a low drone (filtered sawtooths on the pedal note and its fifth in octave 2, plus a sine an octave up), with long attack and release, retriggered with overlaps so it never breaks. It can be turned off in the Music tab.
 - **Key, scale and pedal are editable** in the Music tab:
