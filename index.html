@@ -247,14 +247,14 @@ input[type=range]:disabled{cursor:not-allowed;opacity:.4}
 
 <form id="panel" aria-busy="true" aria-label="Controls">
 <div class="tabs" role="tablist" aria-label="What to edit">
-<button id="tab-nebula" type="button" role="tab" aria-selected="true" aria-controls="pane-nebula" data-action="tab" data-tab="nebula" disabled>Nebula</button>
-<button id="tab-stars" type="button" role="tab" aria-selected="false" aria-controls="pane-stars" data-action="tab" data-tab="stars" disabled>Stars</button>
+<button id="tab-stars" type="button" role="tab" aria-selected="true" aria-controls="pane-stars" data-action="tab" data-tab="stars" disabled>Stars</button>
+<button id="tab-nebula" type="button" role="tab" aria-selected="false" aria-controls="pane-nebula" data-action="tab" data-tab="nebula" disabled>Nebula</button>
 <button id="tab-paint" type="button" role="tab" aria-selected="false" aria-controls="pane-paint" data-action="tab" data-tab="paint" disabled>Paint</button>
 <button id="tab-music" type="button" role="tab" aria-selected="false" aria-controls="pane-music" data-action="tab" data-tab="music" disabled>Music</button>
 </div>
 <div class="scroll">
 
-<div id="pane-nebula" role="tabpanel" aria-labelledby="tab-nebula">
+<div id="pane-nebula" role="tabpanel" aria-labelledby="tab-nebula" hidden>
 <section class="group" aria-labelledby="h-type">
 <h2 id="h-type">Type</h2>
 <details class="type-picker" id="type-picker">
@@ -310,7 +310,7 @@ input[type=range]:disabled{cursor:not-allowed;opacity:.4}
 
 </div>
 
-<div id="pane-stars" role="tabpanel" aria-labelledby="tab-stars" hidden>
+<div id="pane-stars" role="tabpanel" aria-labelledby="tab-stars">
 <section class="group" aria-labelledby="h-field">
 <h2 id="h-field">Star field</h2>
 <label class="switch">Original Lagoon stars<input id="lagoon-stars" name="lagoonStars" type="checkbox" checked disabled></label>
@@ -350,11 +350,11 @@ input[type=range]:disabled{cursor:not-allowed;opacity:.4}
 <label class="pick"><input type="radio" name="voice" value="piano" disabled><span>Piano chords</span></label>
 </div>
 <label class="switch">Background pedal (its note follows the nebula's color)<input id="pedal" name="pedal" type="checkbox" checked disabled></label>
-<label class="switch">Small bright stars join in<input id="harmonics" name="harmonics" type="checkbox" disabled></label>
+<div class="slider"><label for="sounding">Stars that sound</label><output id="sounding-value" for="sounding">14</output><input id="sounding" name="sounding" type="range" min="4" max="40" step="1" value="14" disabled></div>
 </section>
 <section class="group" aria-labelledby="h-roles">
 <h2 id="h-roles">Who plays what</h2>
-<p class="note">Only the big stars, the ones with a diffraction cross, make sound, and their height picks what: with Harmonics, a high star plays a higher note; with Piano chords, near the top the arc's opening chord and near the bottom its resolution. A low D pedal holds everything together. Add spiked stars in the Stars tab to write more notes. One sweep of the line is one arc of the sequence, about 27 seconds. Play and pause with the button under the image or the space bar. Add or erase stars in the Stars tab to change the melody.</p>
+<p class="note">The most luminous stars sound, as many as "Stars that sound" says: first the ten with a diffraction cross, then the large round ones, which ring softer. Height, color and size shape each note. A pedal holds everything together, and its note follows the nebula's color. One sweep of the line is one arc of the sequence, about 27 seconds. Play and pause with the button under the image or the space bar.</p>
 </section>
 </div>
 
@@ -9415,7 +9415,8 @@ const MODEL = {
   // the chosen star tool (adding stars by default), on "Nebula" they only move the
   // cloud when "Move" is on. `tool` is the effective tool; `starTool` is remembered.
   const DEFAULT_STAR_TOOL='add';
-  let tab='nebula', starTool=DEFAULT_STAR_TOOL, tool='look', toolKind='destellos';
+  // In the musical version the stars are the instrument, so their tab comes first.
+  let tab='stars', starTool=DEFAULT_STAR_TOOL, tool=DEFAULT_STAR_TOOL, toolKind='destellos';
   function setTab(next) {
     tab=next;
     tool=tab==='stars' ? starTool : tab==='paint' ? 'paint' : 'look';
@@ -9519,7 +9520,7 @@ const MODEL = {
       case 'toolKind': toolKind=t.value; return syncUI();
       case 'brush': brush=t.value; return syncUI();
       case 'volume': music.volume=Number(t.value)/100; setText('volume-value', t.value+'%'); return;
-      case 'harmonics': music.harmonics=t.checked; refreshSounding(); return;
+      case 'sounding': music.count=Number(t.value); setText('sounding-value', t.value); refreshSounding(); return;
       case 'voice': music.voice=t.value; return;
       case 'pedal': music.pedal=t.checked; return;
       case 'brushSize': brushSize=Number(t.value); return syncUI();
@@ -9832,7 +9833,7 @@ const MODEL = {
     return PEDAL_NOTES[Math.floor((((hue-PEDAL_RED+30)%360)+360)%360/60)%6];
   }
   const scan=document.getElementById('scan'), scanContext=scan.getContext ? scan.getContext('2d') : null;
-  const music={ready:null, playing:false, paused:0, start:0, lastX:0, lastTime:0, lastHarmonic:-Infinity, lastLead:null, recentLeads:[], nextPad:0, padCount:0, pedalNote:{name:'D', pc:2}, pedalFadeIn:false, volume:.8, harmonics:false, count:20, voice:'harmonic', pedal:true, nextPedal:0, patterns:null,
+  const music={ready:null, playing:false, paused:0, start:0, lastX:0, lastTime:0, lastHarmonic:-Infinity, lastLead:null, recentLeads:[], nextPad:0, padCount:0, pedalNote:{name:'D', pc:2}, pedalFadeIn:false, volume:.8, count:14, voice:'harmonic', pedal:true, nextPedal:0, patterns:null,
     ringing:[], sounding:null, frame:0};
 
   function buildSequence(S) {
@@ -9977,22 +9978,23 @@ const MODEL = {
     return true;
   }
 
-  // The stars that sound: every star with a diffraction cross plays chords; with
-  // harmonics on, the brightest small stars (up to `count`) join in.
+  // The stars that sound: the `count` most luminous in the image, by total light
+  // (core plus halo, each times its area). The ten Lagoon stars with a diffraction cross
+  // lead the ranking; the next ones are the large round stars, which ring softer since
+  // presence follows size.
   function soundingStars() {
     const ranked=currentStars().entries.map(star=>({x:star[0], y:star[1],
-      big:star[10]>0,
       // Seen color: core plus halo, each weighted by its area. temp < 0 red, > 0 blue.
       ...(()=>{
         const w=star[2]*star[2], h=star[6]*star[6];
         const r=star[3]*w+star[7]*h, g=star[4]*w+star[8]*h, b=star[5]*w+star[9]*h, top=Math.max(r,g,b,1e-6);
         return {temp:(b-r)/top, size:star[2]};
       })(),
-      light:(star[3]+star[4]+star[5])/3*star[2]*star[2]+(star[10]>0 ? 400 : 0)}))
+      light:((star[3]+star[4]+star[5])*star[2]*star[2]+(star[7]+star[8]+star[9])*star[6]*star[6])/3}))
       .sort((a,b)=>b.light-a.light)
-      .filter((star,i)=>star.big || (music.harmonics && i<music.count));
+      .slice(0, music.count);
     const top=ranked.length ? ranked[0].light : 1;
-    return ranked.map(star=>({...star, brightness:Math.min(1,star.light/top), role:star.big ? 'chord' : 'harmonic'}));
+    return ranked.map(star=>({...star, brightness:Math.min(1,star.light/top), role:'chord'}));
   }
 
   // The line is drawn as a signal trace: a quiet wobble everywhere, plus a spike where

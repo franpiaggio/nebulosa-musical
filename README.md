@@ -2,7 +2,7 @@
 
 A copy of [Nebulae](https://github.com/franpiaggio/nebulosas) with a timeline: a white scan line sweeps the sky from left to right, drawn like a live signal, and the brightest stars play a [Strudel](https://strudel.cc) sequence as the line crosses them.
 
-Everything from the original is still here (nebula types, transform, palettes, shapes, star editing, painting). The music is new.
+Everything from the original is still here (nebula types, transform, palettes, shapes, star editing, painting). The music is new, and since the stars are the instrument, the Stars tab comes first.
 
 ## The music
 
@@ -10,7 +10,7 @@ Press the round **play** button under the image, or the **space bar**, to play a
 
 - Play starts gently: the pedal swells in alone while the line waits three seconds off the left edge, then the stars join one by one as the line reaches them.
 - One sweep of the line is one arc of the sequence: 8 cycles at 18 cycles per minute, about 27 seconds.
-- **Only the big stars sound**, the ones with a diffraction cross, and **their height picks what they play**. There are two voices, chosen in the Music tab:
+- **The most luminous stars sound**, ranked by total light (core plus halo): by default the top 14, adjustable with **Stars that sound**. In the Lagoon the ten stars with a diffraction cross come first, then the large round ones, which ring softer because presence follows size. There are two voices, chosen in the Music tab:
   - **Harmonics** (default): one note per star, with long reverb and delay, shaped by what the star looks like:
     - **height** picks the register on D major pentatonic, from A4 at the bottom to D7 at the top;
     - **color** (core plus halo) shifts it: white stays, blue climbs two or three steps, red drops two. It also picks the timbre: blue rings bright with its octave, white and yellow a warm triangle, red a soft sine;
@@ -21,7 +21,7 @@ Press the round **play** button under the image, or the **space bar**, to play a
 - **The nebula's color picks the pedal note.** After each render the page measures the dominant hue of the image (palette, hue shift, nebula type and painting all count). The hue wheel is split into six notes of D major, going up in fifths from red: red D, orange A, yellow E, green B, blue F#, violet G. All six sit under the harmonics without a clash; grey images keep D. When the color changes, the pedal crossfades to the new note, shown next to the timeline.
 - **Crossing the nebula.** Inspired by the climax pad of a second Strudel piece, where the filter opens as the spectrum grows: a sawtooth pad on the pedal's root, fifth, octave and ninth swells and opens with the amount of gas under the line (around 400 Hz in thin gas, 3 kHz in the core), and a sub-bass sine breathes where the gas is dense. Empty sky stays quiet. The gas per column is measured from the rendered image, so palettes, types and painting all change it.
 - The star pulses and the line spikes like a signal at that height. Over the nebula the line's glow takes the gas color and widens with its density.
-- In the Music tab: **Volume**, the voice, the pedal, and **Small bright stars join in** (off by default), which lets the brightest small stars add one high harmonic each, at most one per second.
+- In the Music tab: **Volume**, the voice, the pedal and **Stars that sound**.
 - Add or erase spiked stars in the Stars tab to write more notes.
 
 The sequence is the one in `buildSequence()`: twelve voicings in D, three openings, four cadences and two rhythms, picked at random each arc (`irand(...).segment(1)`), four voices with their own dynamics. Strudel builds the patterns and is queried at the star's position with `queryArc`; each event is played with `superdough` at an exact audio time, with the same envelopes, reverb, pan and delay as the original code.
