@@ -50,6 +50,11 @@ figure{position:relative;margin:0;line-height:0;width:var(--plate)}
 #transport-time{flex:none;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:86px;text-align:right}
 .transport kbd{flex:none;font:inherit;font-size:11.5px;color:var(--faint);border:1px solid var(--line);border-radius:5px;padding:2px 6px}
 #music-status{font-size:12.5px;color:var(--muted)}
+.field-row{display:grid;grid-template-columns:1fr 1.4fr;gap:8px}
+.field{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--muted);margin-top:8px}
+.field select{appearance:none;-webkit-appearance:none;font:inherit;font-size:13px;color:var(--text);background:var(--raised) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23a5959f' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 10px center;border:1px solid var(--line);border-radius:8px;padding:8px 28px 8px 10px;cursor:pointer}
+.field select:hover{border-color:var(--muted)}
+.field select:disabled{opacity:.45;cursor:wait}
 #pedal-note{flex:none;font-size:12.5px;color:var(--text);border:1px solid var(--line);border-radius:99px;padding:3px 10px;font-variant-numeric:tabular-nums}
 .voice-choice{grid-template-columns:1fr 1fr}
 #pane-music .switch{margin-top:14px}
@@ -344,12 +349,18 @@ input[type=range]:disabled{cursor:not-allowed;opacity:.4}
 <section class="group" aria-labelledby="h-music">
 <h2 id="h-music">Music</h2>
 <div class="slider"><label for="volume">Volume</label><output id="volume-value" for="volume">80%</output><input id="volume" name="volume" type="range" min="0" max="100" step="5" value="80" disabled></div>
+<h3>Key and scale</h3>
+<div class="field-row">
+<label class="field">Key<select name="tonic" disabled><option value="0">C</option><option value="1">C#</option><option value="2" selected>D</option><option value="3">D#</option><option value="4">E</option><option value="5">F</option><option value="6">F#</option><option value="7">G</option><option value="8">G#</option><option value="9">A</option><option value="10">A#</option><option value="11">B</option></select></label>
+<label class="field">Scale<select name="scale" disabled><option value="pentatonic" selected>Major pentatonic</option><option value="minorPentatonic">Minor pentatonic</option><option value="major">Major</option><option value="dorian">Dorian</option><option value="lydian">Lydian</option><option value="mixolydian">Mixolydian</option><option value="minor">Natural minor</option><option value="phrygian">Phrygian</option><option value="hirajoshi">Hirajoshi</option><option value="wholeTone">Whole tone</option></select></label>
+</div>
+<label class="field">Pedal note<select name="pedalMode" disabled><option value="auto" selected>From the nebula's color</option><option value="0">C</option><option value="1">C#</option><option value="2">D</option><option value="3">D#</option><option value="4">E</option><option value="5">F</option><option value="6">F#</option><option value="7">G</option><option value="8">G#</option><option value="9">A</option><option value="10">A#</option><option value="11">B</option></select></label>
 <h3>Big stars play</h3>
 <div class="segmented voice-choice" role="radiogroup" aria-label="Big stars play">
 <label class="pick"><input type="radio" name="voice" value="harmonic" checked disabled><span>Harmonics</span></label>
 <label class="pick"><input type="radio" name="voice" value="piano" disabled><span>Piano chords</span></label>
 </div>
-<label class="switch">Background pedal (its note follows the nebula's color)<input id="pedal" name="pedal" type="checkbox" checked disabled></label>
+<label class="switch">Background pedal<input id="pedal" name="pedal" type="checkbox" checked disabled></label>
 <div class="slider"><label for="sounding">Stars that sound</label><output id="sounding-value" for="sounding">14</output><input id="sounding" name="sounding" type="range" min="4" max="40" step="1" value="14" disabled></div>
 </section>
 <section class="group" aria-labelledby="h-roles">
@@ -9312,7 +9323,7 @@ const MODEL = {
       ready=true;
       document.getElementById('loading').hidden=true;
       panel.removeAttribute('aria-busy');
-      panel.querySelectorAll('input,button').forEach(el=>el.disabled=false);
+      panel.querySelectorAll('input,button,select').forEach(el=>el.disabled=false);
       syncUI();
       transportPlay.disabled=false;
       canvas.dataset.ready='true';
@@ -9523,6 +9534,9 @@ const MODEL = {
       case 'sounding': music.count=Number(t.value); setText('sounding-value', t.value); refreshSounding(); return;
       case 'voice': music.voice=t.value; return;
       case 'pedal': music.pedal=t.checked; return;
+      case 'tonic': key.tonic=Number(t.value); rebuildScale(); music.recentLeads=[]; music.lastLead=null; applyPedal(); return;
+      case 'scale': key.scale=t.value; rebuildScale(); music.recentLeads=[]; music.lastLead=null; applyPedal(); return;
+      case 'pedalMode': key.pedal=t.value; applyPedal(); return;
       case 'brushSize': brushSize=Number(t.value); return syncUI();
       case 'brushFlow': brushFlow=Number(t.value); return syncUI();
       default: return;
@@ -9793,7 +9807,28 @@ const MODEL = {
   //     triangle, red a soft sine) and size sets loudness and ring time;
   //   - a star never repeats any of the last four notes (within 12 s): it steps away
   //     from the star that played it, up if it sits higher, down if lower.
-  const HARMONIC_SCALE=['a4','b4','d5','e5','f#5','a5','b5','d6','e6','f#6','a6','b6','d7'], HARMONIC_GAIN=.07;
+  // KEY, SCALE AND PEDAL (editable in the Music tab)
+  // The lead notes are every note of the chosen scale between A4 and D7, so height has
+  // 13 steps on a pentatonic and about 18 on a seven-note scale.
+  const NOTE_NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const SCALES={
+    pentatonic:[0,2,4,7,9], minorPentatonic:[0,3,5,7,10], major:[0,2,4,5,7,9,11], dorian:[0,2,3,5,7,9,10],
+    lydian:[0,2,4,6,7,9,11], mixolydian:[0,2,4,5,7,9,10], minor:[0,2,3,5,7,8,10], phrygian:[0,1,3,5,7,8,10],
+    hirajoshi:[0,2,3,7,8], wholeTone:[0,2,4,6,8,10],
+  };
+  const LEAD_LOW=69, LEAD_HIGH=98, HARMONIC_GAIN=.07;
+  const key={tonic:2, scale:'pentatonic', pedal:'auto'};
+  const inScale=midi=>SCALES[key.scale].includes(((midi-key.tonic)%12+12)%12);
+  let leadNotes=[];
+  function rebuildScale() { leadNotes=[]; for (let m=LEAD_LOW;m<=LEAD_HIGH;m++) if (inScale(m)) leadNotes.push(m); }
+  rebuildScale();
+  // 'd4', 'f#4', 'bb4' to MIDI, for transposing the piano sequence out of D.
+  function noteToMidi(name) {
+    const [, letter, accidentals, octave]=/^([a-g])([#sb]*)(-?\d+)$/i.exec(name);
+    const base={c:0,d:2,e:4,f:5,g:7,a:9,b:11}[letter.toLowerCase()];
+    const shift=[...accidentals].reduce((sum,a)=>sum+(a==='b' ? -1 : 1),0);
+    return 12*(Number(octave)+1)+base+shift;
+  }
   const NEIGHBOUR_SECONDS=1.5;
   const PEDAL_STEP=3, PEDAL_LENGTH=4.6;
   // Play starts gently: the pedal swells in on its own while the line waits off the
@@ -9816,9 +9851,31 @@ const MODEL = {
   // D major going up in fifths, starting at red: red D, orange A, yellow E, green B,
   // blue F#, violet G, then back to red. All six sit under the harmonics without a
   // clash. Grey images (Mono) keep D.
-  const PEDAL_NOTES=[{name:'D', pc:2},{name:'A', pc:9},{name:'E', pc:4},{name:'B', pc:11},{name:'F#', pc:6},{name:'G', pc:7}];
   const PEDAL_RED=345;
-  function pedalFromPixels(pixels) {
+  // Auto pedal: the scale's notes ordered by fifths from the tonic, spread around the hue
+  // wheel starting at red. D major pentatonic gives red D, then A, E, B, F#.
+  function pedalCandidates() {
+    return SCALES[key.scale].map(i=>(key.tonic+i)%12)
+      .sort((a,b)=>(((a-key.tonic)*7)%12+12)%12-(((b-key.tonic)*7)%12+12)%12);
+  }
+  function resolvePedal() {
+    let pc=key.tonic;
+    if (key.pedal!=='auto') pc=Number(key.pedal);
+    else if (music.hue!=null) {
+      const list=pedalCandidates(), width=360/list.length;
+      pc=list[Math.floor((((music.hue-PEDAL_RED+width/2)%360)+360)%360/width)%list.length];
+    }
+    return {name:NOTE_NAMES[pc], pc};
+  }
+  function applyPedal() {
+    const next=resolvePedal();
+    setText('pedal-note', next.name+' pedal');
+    if (next.pc===music.pedalNote.pc) return;
+    music.pedalNote=next;
+    if (music.playing) music.nextPedal=0;
+  }
+  // Dominant hue of the image in degrees, or null when it is essentially grey.
+  function hueFromPixels(pixels) {
     let x=0, y=0, weight=0;
     for (let i=0;i<pixels.length;i+=4*9) {
       const r=pixels[i], g=pixels[i+1], b=pixels[i+2];
@@ -9828,12 +9885,11 @@ const MODEL = {
       const angle=Math.atan2(Math.sqrt(3)*(g-b), 2*r-g-b);
       x+=Math.cos(angle)*chroma; y+=Math.sin(angle)*chroma; weight+=chroma;
     }
-    if (weight===0 || Math.hypot(x,y)/weight<.2) return PEDAL_NOTES[0];
-    const hue=(Math.atan2(y,x)*180/Math.PI+360)%360;
-    return PEDAL_NOTES[Math.floor((((hue-PEDAL_RED+30)%360)+360)%360/60)%6];
+    if (weight===0 || Math.hypot(x,y)/weight<.2) return null;
+    return (Math.atan2(y,x)*180/Math.PI+360)%360;
   }
   const scan=document.getElementById('scan'), scanContext=scan.getContext ? scan.getContext('2d') : null;
-  const music={ready:null, playing:false, paused:0, start:0, lastX:0, lastTime:0, lastHarmonic:-Infinity, lastLead:null, recentLeads:[], nextPad:0, padCount:0, pedalNote:{name:'D', pc:2}, pedalFadeIn:false, volume:.8, count:14, voice:'harmonic', pedal:true, nextPedal:0, patterns:null,
+  const music={ready:null, playing:false, paused:0, start:0, lastX:0, lastTime:0, lastHarmonic:-Infinity, lastLead:null, recentLeads:[], nextPad:0, padCount:0, pedalNote:{name:'D', pc:2}, hue:null, pedalFadeIn:false, volume:.8, count:14, voice:'harmonic', pedal:true, nextPedal:0, patterns:null,
     ringing:[], sounding:null, frame:0};
 
   function buildSequence(S) {
@@ -9899,9 +9955,9 @@ const MODEL = {
     return sounding || haps[0] || null;
   }
   const colorShift=temp=>temp<-.15 ? -2 : temp<.12 ? 0 : temp<.3 ? 2 : 3;
-  const clampStep=step=>Math.max(0, Math.min(HARMONIC_SCALE.length-1, step));
+  const clampStep=step=>Math.max(0, Math.min(leadNotes.length-1, step));
   function leadStep(star, when) {
-    const top=HARMONIC_SCALE.length-1;
+    const top=leadNotes.length-1;
     let step=clampStep(Math.round((1-star.y/MODEL.height)*top)+colorShift(star.temp));
     const last=music.lastLead;
     if (last) {
@@ -9919,8 +9975,8 @@ const MODEL = {
     if (clash) {
       const used=new Set(recent.map(lead=>lead.step));
       const away=star.y<clash.y || (star.y===clash.y && star.temp>=clash.temp) ? 1 : -1;
-      for (let d=1; d<HARMONIC_SCALE.length; d++) {
-        const near=[step+away*d, step-away*d].find(c=>c>=0 && c<HARMONIC_SCALE.length && !used.has(c));
+      for (let d=1; d<leadNotes.length; d++) {
+        const near=[step+away*d, step-away*d].find(c=>c>=0 && c<leadNotes.length && !used.has(c));
         if (near!==undefined) { step=near; break; }
       }
     }
@@ -9947,9 +10003,9 @@ const MODEL = {
     const at=(value, seconds, duration)=>S.superdough(value, when+seconds, duration).catch(()=>{});
     const band=Math.min(CHORD_STEPS-1, Math.floor(star.y/MODEL.height*CHORD_STEPS));
     if (star.role==='chord' && music.voice==='harmonic') {
-      const note=HARMONIC_SCALE[leadStep(star, when)], octaveUp=name=>name.replace(/\d+$/, n=>Number(n)+1);
+      const note=leadNotes[leadStep(star, when)];
       for (const {octave=0, gain, ...voice} of leadVoice(star)) {
-        at({...voice, note:octave ? octaveUp(note) : note, gain:gain*v, attack:.01, decay:1.4, sustain:.05,
+        at({...voice, note:note+octave, gain:gain*v, attack:.01, decay:1.4, sustain:.05,
           pan:.25+.5*star.x/MODEL.width, room:.95, roomsize:12, delay:.45, delaytime:.75, delayfeedback:.52, orbit:3}, 0, 1.5);
       }
     } else if (star.role==='chord') {
@@ -9958,13 +10014,13 @@ const MODEL = {
         const hap=chordStep(pattern, cycle, step);
         if (!hap) return;
         const length=(hap.whole.end.valueOf()-hap.whole.begin.valueOf())*60/CPM;
-        at({...hap.value, gain:hap.value.gain*v, s:'piano', pan:.34+i*.08, attack:.008, decay:1.8, sustain:.25,
+        at({...hap.value, note:noteToMidi(hap.value.note)+key.tonic-2, gain:hap.value.gain*v, s:'piano', pan:.34+i*.08, attack:.008, decay:1.8, sustain:.25,
           release:.65, room:REVERB, roomsize:4, roomfade:2.8, roomlp:3200, orbit:1},
           delay*DESPLIEGUE_MS/1000, Math.min(4, length*.75));
       });
       P.halo.forEach(pattern=>{
         const hap=chordStep(pattern, cycle, step);
-        if (hap) at({note:hap.value.note, s:'sine', gain:HALO*v, attack:1, decay:.8, sustain:.45, release:.7,
+        if (hap) at({note:noteToMidi(hap.value.note)+key.tonic-2, s:'sine', gain:HALO*v, attack:1, decay:.8, sustain:.45, release:.7,
           pan:.58, room:.65, roomsize:4, roomfade:3, roomlp:3200, orbit:2}, 0, 3);
       });
     } else {
@@ -10202,11 +10258,8 @@ const MODEL = {
   }
   function updatePedal(pixels) {
     measureColumns(pixels);
-    const next=pedalFromPixels(pixels);
-    setText('pedal-note', next.name+' pedal');
-    if (next.pc===music.pedalNote.pc) return;
-    music.pedalNote=next;
-    if (music.playing) music.nextPedal=0;
+    music.hue=hueFromPixels(pixels);
+    applyPedal();
   }
   // Star edits change which stars sound on the next frame.
   function refreshSounding() { music.sounding=null; }
