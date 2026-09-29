@@ -9785,9 +9785,22 @@ const MODEL = {
   const SWEEP_SECONDS=CICLOS_ARCO*60/CPM;
   const PIANO_SAMPLES='https://raw.githubusercontent.com/felixroos/dough-samples/main/piano.json';
   const CHORD_STEPS=6, HARMONIC_GAP=1;
-  // The notes of the harmonics pattern (e7 f#7 a7 b7 c#8 d8) an octave down, high to low.
-  const HARMONIC_NOTES=['d7','c#7','b6','a6','f#6','e6'], HARMONIC_GAIN=.07;
+  // Height maps onto D major pentatonic from A4 (bottom) to D7 (top): 13 steps, about
+  // 66 px each. Stars that ring close together in time always differ, higher star higher
+  // note, even inside one step (see leadStep).
+  const HARMONIC_SCALE=['a4','b4','d5','e5','f#5','a5','b5','d6','e6','f#6','a6','b6','d7'], HARMONIC_GAIN=.07;
+  const NEIGHBOUR_SECONDS=1.5;
   const PEDAL_STEP=3, PEDAL_LENGTH=4.6;
+  // Play starts gently: the pedal swells in on its own while the line waits off the
+  // left edge for INTRO_SECONDS, then the stars join one by one as the line reaches them.
+  const INTRO_SECONDS=3, PEDAL_FADE_IN=4;
+  // Crossing the nebula: inspired by the climax pad of the reference piece, whose filter
+  // opens as the spectrum grows. A sawtooth pad on the pedal's root, fifth, octave and
+  // ninth swells and opens with the amount of gas under the line (400 Hz in thin gas to
+  // 3 kHz in the core), and a sub-bass sine breathes where the gas is dense. Short
+  // overlapping notes carry the changes, since a scheduled note can't be re-filtered.
+  const PAD_STEP=.8, PAD_LENGTH=1.5, PAD_INTERVALS=[0,7,12,14];
+  let columns=null; // per 4-px column: {density 0..1, rgb of the gas}
   // The pedal is a root, its fifth and its octave; `interval` is in semitones.
   const PEDAL=[
     {interval:0, s:'sawtooth', gain:.05, cutoff:380},
@@ -9815,7 +9828,7 @@ const MODEL = {
     return PEDAL_NOTES[Math.floor((((hue-PEDAL_RED+30)%360)+360)%360/60)%6];
   }
   const scan=document.getElementById('scan'), scanContext=scan.getContext ? scan.getContext('2d') : null;
-  const music={ready:null, playing:false, paused:0, start:0, lastX:0, lastTime:0, lastHarmonic:-Infinity, pedalNote:{name:'D', pc:2}, volume:.8, harmonics:false, count:20, voice:'harmonic', pedal:true, nextPedal:0, patterns:null,
+  const music={ready:null, playing:false, paused:0, start:0, lastX:0, lastTime:0, lastHarmonic:-Infinity, lastLead:null, nextPad:0, padCount:0, pedalNote:{name:'D', pc:2}, pedalFadeIn:false, volume:.8, harmonics:false, count:20, voice:'harmonic', pedal:true, nextPedal:0, patterns:null,
     ringing:[], sounding:null, frame:0};
 
   function buildSequence(S) {
@@ -9862,7 +9875,8 @@ const MODEL = {
       const S=window.strudel;
       if (!S || !window.initStrudel) throw new Error('Strudel did not load. Check your connection and reload.');
       await window.initStrudel({prebake:()=>S.samples(PIANO_SAMPLES)});
-      await S.getAudioContext().resume();
+      // Not awaited: resume() waits for a user gesture, and the scheduler copes meanwhile.
+      S.getAudioContext().resume();
       music.patterns=buildSequence(S);
       return S;
     })();
@@ -9879,6 +9893,18 @@ const MODEL = {
     const sounding=haps.find(hap=>hap.whole.begin.valueOf()<=cycle && hap.whole.end.valueOf()>cycle);
     return sounding || haps[0] || null;
   }
+  function leadStep(star, when) {
+    const top=HARMONIC_SCALE.length-1;
+    let step=Math.round((1-star.y/MODEL.height)*top);
+    const last=music.lastLead;
+    if (last && when-last.when<NEIGHBOUR_SECONDS && star.y!==last.y) {
+      if (star.y<last.y && step<=last.step) step=last.step+1;
+      if (star.y>last.y && step>=last.step) step=last.step-1;
+      step=Math.max(0, Math.min(top, step));
+    }
+    music.lastLead={y:star.y, step, when};
+    return step;
+  }
   // The chord a big star plays: step `step` of the arc that contains `cycle`.
   function chordStep(pattern, cycle, step) {
     const arc=Math.floor(cycle/CICLOS_ARCO)*CICLOS_ARCO;
@@ -9890,7 +9916,7 @@ const MODEL = {
     const at=(value, seconds, duration)=>S.superdough(value, when+seconds, duration).catch(()=>{});
     const band=Math.min(CHORD_STEPS-1, Math.floor(star.y/MODEL.height*CHORD_STEPS));
     if (star.role==='chord' && music.voice==='harmonic') {
-      at({note:HARMONIC_NOTES[band], s:'sine', attack:.01, decay:1.4, sustain:.05, release:3.5,
+      at({note:HARMONIC_SCALE[leadStep(star, when)], s:'sine', attack:.01, decay:1.4, sustain:.05, release:3.5,
         gain:HARMONIC_GAIN*v, pan:.25+.5*star.x/MODEL.width, room:.95, roomsize:12,
         delay:.45, delaytime:.75, delayfeedback:.52, orbit:3}, 0, 1.5);
     } else if (star.role==='chord') {
@@ -9946,10 +9972,13 @@ const MODEL = {
       points.push([x+dx, y]);
     }
     scanContext.globalCompositeOperation='lighter';
-    for (const [width, alpha] of [[9,.07],[4,.16],[1.4,.95]]) {
+    // Over the nebula the glow takes the gas color and widens with its density.
+    const column=columns ? columns[Math.max(0,Math.min(columns.length-1, Math.floor(x/4)))] : null;
+    const d=column ? column.density : 0, tint=column ? column.color.join(',') : '255,255,255';
+    for (const [width, alpha, color] of [[9+34*d,.07+.1*d,tint],[4+10*d,.16+.12*d,tint],[1.4,.95,'255,255,255']]) {
       scanContext.beginPath();
       points.forEach(([px,py],i)=>i ? scanContext.lineTo(px,py) : scanContext.moveTo(px,py));
-      scanContext.strokeStyle='rgba(255,255,255,'+alpha+')';
+      scanContext.strokeStyle='rgba('+color+','+alpha+')';
       scanContext.lineWidth=width;
       scanContext.stroke();
     }
@@ -9975,17 +10004,41 @@ const MODEL = {
     const S=window.strudel;
     while (music.nextPedal<now+.3) {
       const when=Math.max(music.nextPedal, now+.02);
-      const root=36+music.pedalNote.pc;
-      for (const {interval, ...voice} of PEDAL) S.superdough({...voice, note:root+interval, gain:voice.gain*music.volume, attack:1.8, decay:.1, sustain:1,
+      const root=36+music.pedalNote.pc, attack=music.pedalFadeIn ? PEDAL_FADE_IN : 1.8;
+      music.pedalFadeIn=false;
+      for (const {interval, ...voice} of PEDAL) S.superdough({...voice, note:root+interval, gain:voice.gain*music.volume, attack, decay:.1, sustain:1,
         release:2.2, pan:.5, room:.7, roomsize:8, roomlp:2400, orbit:5}, when, PEDAL_LENGTH).catch(()=>{});
       music.nextPedal=when+PEDAL_STEP;
     }
+  }
+  function schedulePad(now, x) {
+    if (music.nextPad>now+.2) return;
+    music.nextPad=Math.max(music.nextPad, now)+PAD_STEP;
+    const column=columns && x>=0 ? columns[Math.min(columns.length-1, Math.floor(x/4))] : null;
+    const d=column ? column.density : 0;
+    if (d<.06) return;
+    const S=window.strudel, when=now+.03, root=48+music.pedalNote.pc, v=music.volume;
+    for (const interval of PAD_INTERVALS) S.superdough({note:root+interval, s:'sawtooth', gain:.045*d*v,
+      cutoff:400+2600*d*d, attack:.6, decay:.1, sustain:1, release:1.4, pan:.35+.3*Math.random(),
+      room:.45, roomsize:7, orbit:6}, when, PAD_LENGTH).catch(()=>{});
+    // The sub-bass breathes every other step, only in dense gas.
+    if (d>.45 && (music.padCount++)%2===0) S.superdough({note:24+music.pedalNote.pc, s:'sine',
+      gain:.16*(d-.45)/.55*v, cutoff:160, attack:.18, decay:.1, sustain:1, release:1.8, orbit:7}, when, 2.2).catch(()=>{});
   }
   function tick() {
     if (!music.playing) return;
     const S=window.strudel, now=S.getAudioContext().currentTime;
     schedulePedal(now);
+    schedulePad(now, (now-music.start)>=0 ? sweepX(now-music.start) : -1);
     const elapsed=now-music.start, cycle=elapsed*CPM/60;
+    if (elapsed<0) {
+      // Intro: only the pedal sounds; the line has not entered the image yet.
+      if (scanContext) scanContext.clearRect(0,0,MODEL.width,MODEL.height);
+      music.lastX=0; music.lastTime=now;
+      syncTimeline(0);
+      music.frame=requestAnimationFrame(tick);
+      return;
+    }
     const x=sweepX(elapsed);
     const wrapped=x<music.lastX;
     if (!music.sounding || wrapped) music.sounding=soundingStars();
@@ -10030,7 +10083,7 @@ const MODEL = {
   }
   async function togglePlay() {
     if (music.playing) {
-      music.paused=currentElapsed();
+      music.paused=Math.max(0, currentElapsed()); // pausing in the intro restarts it
       music.playing=false; cancelAnimationFrame(music.frame);
       music.ringing=[];
       drawScan(sweepX(music.paused), 0);
@@ -10041,7 +10094,8 @@ const MODEL = {
     try { await ensureMusic(); }
     catch (error) { music.ready=null; setMusicStatus(error.message); return; }
     const now=window.strudel.getAudioContext().currentTime;
-    music.playing=true; music.start=now+.05-(music.paused||0); music.nextPedal=now+.05;
+    const intro=music.paused ? 0 : INTRO_SECONDS;
+    music.playing=true; music.start=now+.05+intro-(music.paused||0); music.nextPedal=now+.05; music.pedalFadeIn=true; music.nextPad=now;
     music.lastX=sweepX(music.paused||0); music.lastTime=music.start; music.sounding=null;
     syncPlayButtons(); setMusicStatus('');
     music.frame=requestAnimationFrame(tick);
@@ -10085,7 +10139,29 @@ const MODEL = {
   }, true);
 
   // A new color moves the pedal at once: the old notes fade out as the new ones swell.
+  // How much nebula each column holds, from the rendered image: mean brightness with
+  // star cores capped, minus the sky level, normalized to the densest column.
+  function measureColumns(pixels) {
+    const W=MODEL.width, H=MODEL.height, bins=Math.ceil(W/4), raw=new Float32Array(bins), tint=[];
+    for (let bin=0;bin<bins;bin++) {
+      let sum=0, r=0, g=0, b=0, n=0;
+      for (let y=0;y<H;y+=6) for (let x=bin*4;x<Math.min(W,bin*4+4);x+=2) {
+        const i=(y*W+x)*4, light=Math.min(170,(pixels[i]+pixels[i+1]+pixels[i+2])/3);
+        sum+=light; r+=pixels[i]; g+=pixels[i+1]; b+=pixels[i+2]; n++;
+      }
+      raw[bin]=sum/n; tint.push([r/n,g/n,b/n]);
+    }
+    const sorted=Array.from(raw).sort((a,b)=>a-b), sky=sorted[Math.floor(bins*.05)];
+    let peak=1e-6;
+    const smooth=raw.map((v,i)=>{ let t=0, c=0; for (let k=-4;k<=4;k++) if (raw[i+k]!==undefined) { t+=raw[i+k]; c++; } return Math.max(0,t/c-sky); });
+    smooth.forEach(v=>{ if (v>peak) peak=v; });
+    columns=Array.from(smooth, (v,i)=>{
+      const [r,g,b]=tint[i], top=Math.max(r,g,b,1);
+      return {density:Math.min(1,v/peak), color:[r/top*255, g/top*255, b/top*255].map(Math.round)};
+    });
+  }
   function updatePedal(pixels) {
+    measureColumns(pixels);
     const next=pedalFromPixels(pixels);
     setText('pedal-note', next.name+' pedal');
     if (next.pc===music.pedalNote.pc) return;

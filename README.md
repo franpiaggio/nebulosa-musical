@@ -8,13 +8,15 @@ Everything from the original is still here (nebula types, transform, palettes, s
 
 Press the round **play** button under the image, or the **space bar**, to play and pause. Pausing freezes the line where it is; playing again continues from there. The timeline next to the button shows where the line is in the arc, and clicking or dragging it jumps elsewhere (arrow keys work too when it has focus). The first play loads Strudel and a piano sample set from the internet, so it needs a connection.
 
+- Play starts gently: the pedal swells in alone while the line waits three seconds off the left edge, then the stars join one by one as the line reaches them.
 - One sweep of the line is one arc of the sequence: 8 cycles at 18 cycles per minute, about 27 seconds.
 - **Only the big stars sound**, the ones with a diffraction cross, and **their height picks what they play**. There are two voices, chosen in the Music tab:
-  - **Harmonics** (default): one sine note from the harmonics pattern of the sequence, an octave down (E6 to D7), with long reverb and delay. The image is split into six bands, and a higher star plays a higher note.
+  - **Harmonics** (default): one sine note with long reverb and delay. Height maps onto D major pentatonic from A4 at the bottom to D7 at the top (13 steps). Stars that ring within 1.5 seconds of each other always differ, the higher one on the higher note, so two stars stacked close together never repeat a note.
   - **Piano chords**: a chord that starts an octave low and opens upward in 35 ms steps, with a soft sine halo. A star near the top plays the arc's opening chord and one near the bottom its resolution to D.
 - **Background pedal**: a low drone (filtered sawtooths on the root and fifth in octave 2, plus a sine an octave up), with long attack and release, retriggered with overlaps so it never breaks. It can be turned off in the Music tab.
 - **The nebula's color picks the pedal note.** After each render the page measures the dominant hue of the image (palette, hue shift, nebula type and painting all count). The hue wheel is split into six notes of D major, going up in fifths from red: red D, orange A, yellow E, green B, blue F#, violet G. All six sit under the harmonics without a clash; grey images keep D. When the color changes, the pedal crossfades to the new note, shown next to the timeline.
-- The star pulses and the line spikes like a signal at that height.
+- **Crossing the nebula.** Inspired by the climax pad of a second Strudel piece, where the filter opens as the spectrum grows: a sawtooth pad on the pedal's root, fifth, octave and ninth swells and opens with the amount of gas under the line (around 400 Hz in thin gas, 3 kHz in the core), and a sub-bass sine breathes where the gas is dense. Empty sky stays quiet. The gas per column is measured from the rendered image, so palettes, types and painting all change it.
+- The star pulses and the line spikes like a signal at that height. Over the nebula the line's glow takes the gas color and widens with its density.
 - In the Music tab: **Volume**, the voice, the pedal, and **Small bright stars join in** (off by default), which lets the brightest small stars add one high harmonic each, at most one per second.
 - Add or erase spiked stars in the Stars tab to write more notes.
 
