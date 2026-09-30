@@ -9799,7 +9799,8 @@ const MODEL = {
   // audio time.
   const CPM=18, CICLOS_ARCO=8, DESPLIEGUE_MS=35, VOLUMEN=.30, HALO=.012, REVERB=.50;
   const SWEEP_SECONDS=CICLOS_ARCO*60/CPM;
-  const PIANO_SAMPLES='https://raw.githubusercontent.com/felixroos/dough-samples/main/piano.json';
+  // Served from the project (samples/), so nothing waits on GitHub while playing.
+  const PIANO_SAMPLES='samples/piano.json';
   const CHORD_STEPS=6, HARMONIC_GAP=1;
   // Each big star's note comes from what it looks like:
   //   - height picks the register on D major pentatonic, A4 (bottom) to D7 (top);
@@ -9949,10 +9950,14 @@ const MODEL = {
   // Strudel drops a sample hit whose file is still downloading when its time comes, so
   // the first star to reach each piano sample would stay silent. Strike every note the
   // stars can use once, at zero gain, so all of those samples are fetched up front.
-  function warmPiano(S) {
-    const now=S.getAudioContext().currentTime;
-    for (let midi=36; midi<=LEAD_HIGH; midi++)
-      S.superdough({s:'piano', note:midi, gain:0}, now, .05).catch(()=>{});
+  // initStrudel does not wait for the sample map, so retry until 'piano' is known.
+  async function warmPiano(S) {
+    const strike=midi=>S.superdough({s:'piano', note:midi, gain:0}, S.getAudioContext().currentTime, .05);
+    for (let tries=0; ; tries++) {
+      try { await strike(60); break; }
+      catch (error) { if (tries>=50) return; await new Promise(resolve=>setTimeout(resolve, 200)); }
+    }
+    for (let midi=36; midi<=LEAD_HIGH; midi++) strike(midi).catch(()=>{});
   }
 
   const firstHap=(pattern, from, to)=>pattern.queryArc(from, to)

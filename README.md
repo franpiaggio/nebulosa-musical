@@ -6,7 +6,7 @@ Everything from the original is still here (nebula types, transform, palettes, s
 
 ## The music
 
-Press the round **play** button under the image, or the **space bar**, to play and pause. Pausing freezes the line where it is; playing again continues from there. The timeline next to the button shows where the line is in the arc, and clicking or dragging it jumps elsewhere (arrow keys work too when it has focus). The first play loads Strudel and a piano sample set from the internet, so it needs a connection.
+Press the round **play** button under the image, or the **space bar**, to play and pause. Pausing freezes the line where it is; playing again continues from there. The timeline next to the button shows where the line is in the arc, and clicking or dragging it jumps elsewhere (arrow keys work too when it has focus). The first play loads Strudel from the internet, so it needs a connection. The piano samples (from felixroos/dough-samples) live in `samples/` and load from the page itself, all of them up front, so no star misses its note while a file downloads.
 
 - Play starts gently: the pedal swells in alone while the line waits three seconds off the left edge, then the stars join one by one as the line reaches them.
 - One sweep of the line is one arc of the sequence: 8 cycles at 18 cycles per minute, about 27 seconds.
