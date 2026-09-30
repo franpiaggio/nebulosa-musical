@@ -9940,9 +9940,19 @@ const MODEL = {
       // Not awaited: resume() waits for a user gesture, and the scheduler copes meanwhile.
       S.getAudioContext().resume();
       music.patterns=buildSequence(S);
+      warmPiano(S);
       return S;
     })();
     return music.ready;
+  }
+
+  // Strudel drops a sample hit whose file is still downloading when its time comes, so
+  // the first star to reach each piano sample would stay silent. Strike every note the
+  // stars can use once, at zero gain, so all of those samples are fetched up front.
+  function warmPiano(S) {
+    const now=S.getAudioContext().currentTime;
+    for (let midi=36; midi<=LEAD_HIGH; midi++)
+      S.superdough({s:'piano', note:midi, gain:0}, now, .05).catch(()=>{});
   }
 
   const firstHap=(pattern, from, to)=>pattern.queryArc(from, to)
