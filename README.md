@@ -6,7 +6,7 @@ Everything from the original is still here (nebula types, transform, palettes, s
 
 ## The music
 
-Press the round **play** button under the image, or the **space bar**, to play and pause. Pausing freezes the line where it is; playing again continues from there. The timeline next to the button shows where the line is in the arc, and clicking or dragging it jumps elsewhere (arrow keys work too when it has focus). The first play loads Strudel from the internet, so it needs a connection. The piano samples (from felixroos/dough-samples) live in `samples/` and load from the page itself, all of them up front, so no star misses its note while a file downloads.
+Press the round **play** button under the image, or the **space bar**, to play and pause. Pausing freezes the line where it is; playing again continues from there. The timeline next to the button shows where the line is in the arc, and clicking or dragging it jumps elsewhere (arrow keys work too when it has focus). The first play loads Strudel from the internet, so it needs a connection. On iPhone and iPad the sound plays even with the silent switch on; if Strudel was still loading on the first tap, the next tap anywhere turns the sound on. The piano samples (from felixroos/dough-samples) live in `samples/` and load from the page itself, all of them up front, so no star misses its note while a file downloads.
 
 - Play starts gently: the pedal swells in alone while the line waits three seconds off the left edge, then the stars join one by one as the line reaches them.
 - One sweep of the line is one arc of the sequence: 8 cycles at 18 cycles per minute, about 27 seconds.
@@ -71,7 +71,7 @@ The panel on the right has three tabs: **Nebula** (type, transform, color and sh
 - Turn the Lagoon's original stars on or off.
 - Add generated stars by kind: background, Sun-like, red dwarfs, blue giants and spiked stars with diffraction crosses.
 - "New star field" replaces the field with a generated one.
-- Click editing: when you open the Stars tab, Add mode is already on, so a click on the image adds a star. Erase removes the nearest one and View turns clicks off. Esc leaves any mode. On the Nebula tab, clicks never touch the stars.
+- Click editing: when you open the Stars tab, Add mode is already on, so a click on the image adds a star. On phones and tablets it starts on View instead, so a tap never edits by surprise. Erase removes the nearest one and View turns clicks off. Esc leaves any mode. On the Nebula tab, clicks never touch the stars.
 
 **Paint.** Paint on the image with the mouse and each stroke turns into nebula when you let go. Brushes: Hydrogen (red), Oxygen (teal), Reflection (blue), Dust (darkens whatever is underneath, the Lagoon included) and an Eraser, with Size and Strength sliders, "Undo stroke" and "Clear painting". Painted gas follows the palette and hue shift like the rest of the nebula.
 

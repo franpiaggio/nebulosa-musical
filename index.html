@@ -9426,7 +9426,9 @@ const MODEL = {
   // Two tabs: nebula or stars. Plate clicks follow the tab: on "Stars" they use
   // the chosen star tool (adding stars by default), on "Nebula" they only move the
   // cloud when "Move" is on. `tool` is the effective tool; `starTool` is remembered.
-  const DEFAULT_STAR_TOOL='add';
+  // On phones and tablets a tap on the image should not edit anything by surprise, so
+  // click editing starts on View there; Add stays the default with a mouse.
+  const DEFAULT_STAR_TOOL=matchMedia('(pointer: coarse), (max-width: 900px)').matches ? 'look' : 'add';
   // In the musical version the stars are the instrument, so their tab comes first.
   let tab='stars', starTool=DEFAULT_STAR_TOOL, tool=DEFAULT_STAR_TOOL, toolKind='destellos';
   function setTab(next) {
@@ -10200,7 +10202,40 @@ const MODEL = {
   function currentElapsed() {
     return music.playing ? window.strudel.getAudioContext().currentTime-music.start : music.paused;
   }
+  // iOS only lets Web Audio start inside the tap itself, and mutes it with the silent
+  // switch unless the page plays as media. So, synchronously in every gesture: ask for
+  // the playback audio session (Safari 17+), keep a silent <audio> loop going while
+  // the music plays (older iOS), and create or resume Strudel's context with a silent
+  // buffer, which is what actually unlocks it.
+  let silentLoop=null;
+  function unlockAudio() {
+    try { if (navigator.audioSession) navigator.audioSession.type='playback'; } catch (error) {}
+    if (!silentLoop) {
+      const rate=8000, samples=rate/2, wav=new DataView(new ArrayBuffer(44+samples*2));
+      const text=(at, value)=>[...value].forEach((c, i)=>wav.setUint8(at+i, c.charCodeAt(0)));
+      text(0,'RIFF'); wav.setUint32(4,36+samples*2,true); text(8,'WAVEfmt '); wav.setUint32(16,16,true);
+      wav.setUint16(20,1,true); wav.setUint16(22,1,true); wav.setUint32(24,rate,true); wav.setUint32(28,rate*2,true);
+      wav.setUint16(32,2,true); wav.setUint16(34,16,true); text(36,'data'); wav.setUint32(40,samples*2,true);
+      silentLoop=new Audio(URL.createObjectURL(new Blob([wav], {type:'audio/wav'})));
+      silentLoop.loop=true; silentLoop.setAttribute('playsinline', '');
+    }
+    if (music.playing || music.starting) silentLoop.play().catch(()=>{});
+    const S=window.strudel;
+    if (!S || !S.getAudioContext) return;
+    const context=S.getAudioContext();
+    if (context.state==='running') return;
+    context.resume().then(()=>{ if (music.playing) setMusicStatus(''); }).catch(()=>{});
+    const source=context.createBufferSource();
+    source.buffer=context.createBuffer(1, 1, context.sampleRate);
+    source.connect(context.destination); source.start(0);
+  }
+  // If Strudel was still loading during the first tap, the next touch anywhere unlocks it.
+  for (const type of ['touchend', 'pointerup', 'keydown'])
+    document.addEventListener(type, ()=>{ if (music.playing || music.starting) unlockAudio(); }, {capture:true, passive:true});
+
   async function togglePlay() {
+    if (!music.playing) { music.starting=true; unlockAudio(); }
+    else if (silentLoop) silentLoop.pause();
     if (music.playing) {
       music.paused=Math.max(0, currentElapsed()); // pausing in the intro restarts it
       music.playing=false; cancelAnimationFrame(music.frame);
@@ -10211,7 +10246,8 @@ const MODEL = {
     }
     setMusicStatus('Loading Strudel and the piano…');
     try { await ensureMusic(); }
-    catch (error) { music.ready=null; setMusicStatus(error.message); return; }
+    catch (error) { music.ready=null; music.starting=false; setMusicStatus(error.message); return; }
+    finally { music.starting=false; }
     // Every play comes from a click or key press, so resume here too: a context that
     // stayed suspended from an earlier attempt would otherwise freeze the clock.
     window.strudel.getAudioContext().resume();
@@ -10219,7 +10255,8 @@ const MODEL = {
     const intro=music.paused ? 0 : INTRO_SECONDS;
     music.playing=true; music.start=now+.05+intro-(music.paused||0); music.nextPedal=now+.05; music.pedalFadeIn=true; music.nextPad=now;
     music.lastX=sweepX(music.paused||0); music.lastTime=music.start; music.sounding=null;
-    syncPlayButtons(); setMusicStatus('');
+    syncPlayButtons();
+    setMusicStatus(window.strudel.getAudioContext().state==='running' ? '' : 'Tap anywhere to turn the sound on.');
     music.frame=requestAnimationFrame(tick);
   }
   // Seeking moves the line without ringing the stars in between.
