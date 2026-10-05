@@ -358,7 +358,7 @@ input[type=range]:disabled{cursor:not-allowed;opacity:.4}
 <h3>Key and scale</h3>
 <div class="field-row">
 <label class="field">Key<select name="tonic" disabled><option value="0">C</option><option value="1">C#</option><option value="2" selected>D</option><option value="3">D#</option><option value="4">E</option><option value="5">F</option><option value="6">F#</option><option value="7">G</option><option value="8">G#</option><option value="9">A</option><option value="10">A#</option><option value="11">B</option></select></label>
-<label class="field">Scale<select name="scale" disabled><option value="pentatonic" selected>Major pentatonic</option><option value="minorPentatonic">Minor pentatonic</option><option value="major">Major</option><option value="dorian">Dorian</option><option value="lydian">Lydian</option><option value="mixolydian">Mixolydian</option><option value="minor">Natural minor</option><option value="phrygian">Phrygian</option><option value="hirajoshi">Hirajoshi</option><option value="wholeTone">Whole tone</option></select></label>
+<label class="field">Scale<select name="musicScale" disabled><option value="pentatonic" selected>Major pentatonic</option><option value="minorPentatonic">Minor pentatonic</option><option value="major">Major</option><option value="dorian">Dorian</option><option value="lydian">Lydian</option><option value="mixolydian">Mixolydian</option><option value="minor">Natural minor</option><option value="phrygian">Phrygian</option><option value="hirajoshi">Hirajoshi</option><option value="wholeTone">Whole tone</option></select></label>
 </div>
 <label class="field">Pedal note<select name="pedalMode" disabled><option value="auto" selected>From the nebula's color</option><option value="0">C</option><option value="1">C#</option><option value="2">D</option><option value="3">D#</option><option value="4">E</option><option value="5">F</option><option value="6">F#</option><option value="7">G</option><option value="8">G#</option><option value="9">A</option><option value="10">A#</option><option value="11">B</option></select></label>
 <h3>Big stars play</h3>
@@ -9551,7 +9551,7 @@ const MODEL = {
       case 'voice': music.voice=t.value; return;
       case 'pedal': music.pedal=t.checked; return;
       case 'tonic': key.tonic=Number(t.value); rebuildScale(); music.recentLeads=[]; music.lastLead=null; applyPedal(); return;
-      case 'scale': key.scale=t.value; rebuildScale(); music.recentLeads=[]; music.lastLead=null; applyPedal(); return;
+      case 'musicScale': key.scale=t.value; rebuildScale(); music.recentLeads=[]; music.lastLead=null; applyPedal(); return;
       case 'pedalMode': key.pedal=t.value; applyPedal(); return;
       case 'brushSize': brushSize=Number(t.value); return syncUI();
       case 'brushFlow': brushFlow=Number(t.value); return syncUI();
@@ -9605,6 +9605,18 @@ const MODEL = {
         starState.counts[kind]=Math.round(STAR_DEFAULTS[kind]*(.5+1.5*Math.random()));
       starState.lagoon=options.type==='laguna' && Math.random()<.5;
       starState.added=[]; starState.removed.clear();
+      // And new music: key, scale, pedal and voice. The pedal follows the nebula's color
+      // half the time; otherwise it is a note of the new scale, so it never clashes.
+      // The voice is harmonics or piano notes (chords stay a deliberate choice).
+      key.tonic=Math.floor(Math.random()*12);
+      key.scale=random(Object.keys(SCALES));
+      const scaleNotes=SCALES[key.scale].map(step=>(key.tonic+step)%12);
+      key.pedal=Math.random()<.5 ? 'auto' : String(random(scaleNotes));
+      music.voice=random(['harmonic', 'pianoNote']);
+      rebuildScale(); music.recentLeads=[]; music.lastLead=null; applyPedal();
+      const field=name=>panel.querySelector('[name="'+name+'"]');
+      field('tonic').value=String(key.tonic); field('musicScale').value=key.scale; field('pedalMode').value=key.pedal;
+      setRadio('voice', music.voice);
       starsChanged();
     },
     reset() {
