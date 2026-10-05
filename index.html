@@ -9605,13 +9605,13 @@ const MODEL = {
         starState.counts[kind]=Math.round(STAR_DEFAULTS[kind]*(.5+1.5*Math.random()));
       starState.lagoon=options.type==='laguna' && Math.random()<.5;
       starState.added=[]; starState.removed.clear();
-      // And new music: key, scale, pedal and voice. The pedal follows the nebula's color
-      // half the time; otherwise it is a note of the new scale, so it never clashes.
+      // And new music: key, scale, pedal and voice. The pedal always supports the scale:
+      // its tonic, or now and then its fifth (a dominant pedal) when the scale has one.
       // The voice is harmonics or piano notes (chords stay a deliberate choice).
       key.tonic=Math.floor(Math.random()*12);
       key.scale=random(Object.keys(SCALES));
-      const scaleNotes=SCALES[key.scale].map(step=>(key.tonic+step)%12);
-      key.pedal=Math.random()<.5 ? 'auto' : String(random(scaleNotes));
+      const hasFifth=SCALES[key.scale].includes(7);
+      key.pedal=String(hasFifth && Math.random()<.3 ? (key.tonic+7)%12 : key.tonic);
       music.voice=random(['harmonic', 'pianoNote']);
       rebuildScale(); music.recentLeads=[]; music.lastLead=null; applyPedal();
       const field=name=>panel.querySelector('[name="'+name+'"]');
@@ -10180,7 +10180,8 @@ const MODEL = {
       const when=Math.max(music.nextPedal, now+.02);
       const root=36+music.pedalNote.pc, attack=music.pedalFadeIn ? PEDAL_FADE_IN : 1.8;
       music.pedalFadeIn=false;
-      for (const {interval, ...voice} of PEDAL) S.superdough({...voice, note:root+interval, gain:voice.gain*music.volume, attack, decay:.1, sustain:1,
+      // Voices that fall outside the scale (the fifth in whole tone) stay silent.
+      for (const {interval, ...voice} of PEDAL) if (interval%12===0 || inScale(root+interval)) S.superdough({...voice, note:root+interval, gain:voice.gain*music.volume, attack, decay:.1, sustain:1,
         release:2.2, pan:.5, room:.7, roomsize:8, roomlp:2400, orbit:5}, when, PEDAL_LENGTH).catch(()=>{});
       music.nextPedal=when+PEDAL_STEP;
     }
@@ -10192,7 +10193,7 @@ const MODEL = {
     const d=column ? column.density : 0;
     if (d<.06) return;
     const S=window.strudel, when=now+.03, root=48+music.pedalNote.pc, v=music.volume;
-    for (const interval of PAD_INTERVALS) S.superdough({note:root+interval, s:'sawtooth', gain:.045*d*v,
+    for (const interval of PAD_INTERVALS) if (interval%12===0 || inScale(root+interval)) S.superdough({note:root+interval, s:'sawtooth', gain:.045*d*v,
       cutoff:400+2600*d*d, attack:.6, decay:.1, sustain:1, release:1.4, pan:.35+.3*Math.random(),
       room:.45, roomsize:7, orbit:6}, when, PAD_LENGTH).catch(()=>{});
     // The sub-bass breathes every other step, only in dense gas.
