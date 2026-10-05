@@ -36,9 +36,9 @@ Strudel is loaded from jsDelivr (`@strudel/web@1.3.0`, AGPL-3.0-or-later).
 
 ## Opening it
 
-Locally, double-click `index.html` in any modern browser. The first render takes a second or two.
+Online: https://franpiaggio.github.io/nebulosa-musical/
 
-To serve it instead:
+Locally, serve the folder over http. Opening `index.html` by double-click shows the nebula, but the browser blocks the piano samples from `file://`, so there is no sound.
 
 ```sh
 python3 -m http.server 8000
