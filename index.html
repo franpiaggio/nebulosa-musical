@@ -47,6 +47,7 @@ figure{position:relative;margin:0;line-height:0;width:var(--plate)}
 #timeline-fill{position:absolute;left:0;top:13px;height:2px;border-radius:2px;background:#fff;width:0}
 #timeline-head{position:absolute;top:6px;width:2px;height:16px;margin-left:-1px;background:#fff;box-shadow:0 0 8px #fff;left:0}
 .timeline:focus-visible{outline:2px solid var(--halpha);outline-offset:4px;border-radius:4px}
+#transport-layer{flex:none;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
 #transport-time{flex:none;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:86px;text-align:right}
 .transport kbd{flex:none;font:inherit;font-size:11.5px;color:var(--faint);border:1px solid var(--line);border-radius:5px;padding:2px 6px}
 #music-status{font-size:12.5px;color:var(--muted)}
@@ -248,6 +249,7 @@ input[type=range]:disabled{cursor:not-allowed;opacity:.4}
 </button>
 <div id="timeline" class="timeline" role="slider" tabindex="0" aria-label="Position in the arc" aria-valuemin="0" aria-valuemax="27" aria-valuenow="0"><div id="timeline-fill"></div><div id="timeline-head"></div></div>
 <span id="transport-time">0:00 / 0:27</span>
+<span id="transport-layer" title="Each pass plays the next layer of stars, from the biggest to the smallest">Layer 1</span>
 <span id="pedal-note" title="Pedal note, picked by the nebula's color">D pedal</span>
 <kbd title="Space bar plays and pauses">Space</kbd>
 <span id="music-status" role="status"></span>
@@ -9330,6 +9332,7 @@ const MODEL = {
       panel.removeAttribute('aria-busy');
       panel.querySelectorAll('input,button,select').forEach(el=>el.disabled=false);
       syncUI();
+      refreshSounding();
       transportPlay.disabled=false;
       canvas.dataset.ready='true';
       canvas.dataset.renderMs=Math.round(performance.now()-START);
@@ -10073,7 +10076,10 @@ const MODEL = {
   // (core plus halo, each times its area). The ten Lagoon stars with a diffraction cross
   // lead the ranking; the next ones are the large round stars, which ring softer since
   // presence follows size.
-  function soundingStars() {
+  // Each pass of the line plays the next layer of stars, from the most luminous down,
+  // and after the last layer it starts over with the biggest.
+  const MAX_LAYERS=6, LAYER_GAP=.5;
+  function soundingStars(pass=0) {
     const ranked=currentStars().entries.map(star=>({x:star[0], y:star[1],
       // Seen color: core plus halo, each weighted by its area. temp < 0 red, > 0 blue.
       ...(()=>{
@@ -10082,10 +10088,27 @@ const MODEL = {
         return {temp:(b-r)/top, size:star[2]};
       })(),
       light:((star[3]+star[4]+star[5])*star[2]*star[2]+(star[7]+star[8]+star[9])*star[6]*star[6])/3}))
-      .sort((a,b)=>b.light-a.light)
-      .slice(0, music.count);
-    const top=ranked.length ? ranked[0].light : 1;
-    return ranked.map(star=>({...star, brightness:Math.min(1,star.light/top), role:'chord'}));
+      .sort((a,b)=>b.light-a.light);
+    // Layers are dealt in order of light, but a star only joins a layer if it is at least
+    // LAYER_GAP of the image width away from the stars already in it; the rest wait for
+    // a later layer. Every pass then rings at an even pace, never in clumps, and after
+    // MAX_LAYERS passes it goes back to the biggest stars.
+    const gap=MODEL.width*LAYER_GAP/music.count, layers=[];
+    let remaining=ranked;
+    while (layers.length<MAX_LAYERS && remaining.length) {
+      const layerStars=[], rest=[];
+      for (const star of remaining) {
+        if (layerStars.length<music.count && layerStars.every(other=>Math.abs(other.x-star.x)>=gap)) layerStars.push(star);
+        else rest.push(star);
+      }
+      layers.push(layerStars); remaining=rest;
+    }
+    const layer=pass%layers.length;
+    music.layer=layer; music.layers=layers.length;
+    const chosen=layers[layer]||[];
+    // Ring brightness is relative to the layer, so faint layers still show their rings.
+    const top=chosen.length ? chosen[0].light : 1;
+    return chosen.map(star=>({...star, brightness:Math.min(1,star.light/top), role:'chord'}));
   }
 
   // The line is drawn as a signal trace: a quiet wobble everywhere, plus a spike where
@@ -10172,13 +10195,20 @@ const MODEL = {
     }
     const x=sweepX(elapsed);
     const wrapped=x<music.lastX;
-    if (!music.sounding || wrapped) music.sounding=soundingStars();
+    const pass=Math.floor(elapsed/SWEEP_SECONDS);
+    let newLayer=false;
+    if (!music.sounding || pass!==music.soundingPass) {
+      newLayer=music.sounding!=null && pass!==music.soundingPass;
+      music.sounding=soundingStars(pass); music.soundingPass=pass; syncLayer();
+    }
     // A background tab pauses animation frames while audio time keeps running; after
     // such a gap the stars the line skipped stay silent instead of all ringing at once.
     const skipped=now-music.lastTime>.25;
     music.lastTime=now;
     for (const star of skipped ? [] : music.sounding) {
-      const crossed=wrapped ? (star.x>music.lastX || star.x<=x) : (star.x>music.lastX && star.x<=x);
+      // On the frame a new layer starts, only the stretch from the left edge counts:
+      // the end of the previous pass belonged to the previous layer.
+      const crossed=wrapped ? ((!newLayer && star.x>music.lastX) || star.x<=x) : (star.x>music.lastX && star.x<=x);
       if (!crossed) continue;
       // Cycle at the star's own position, so the music follows the line exactly.
       const starCycle=Math.floor(cycle/CICLOS_ARCO)*CICLOS_ARCO+star.x/MODEL.width*CICLOS_ARCO;
@@ -10201,6 +10231,9 @@ const MODEL = {
     if (head) head.style.left=share+'%';
     timeline.setAttribute('aria-valuenow', String(Math.round(within)));
     setText('transport-time', clock(within)+' / '+clock(Math.round(SWEEP_SECONDS)));
+  }
+  function syncLayer() {
+    setText('transport-layer', 'Layer '+((music.layer||0)+1)+' of '+(music.layers||1));
   }
   function setMusicStatus(text) { setText('music-status', text); }
   function syncPlayButtons() {
@@ -10270,8 +10303,10 @@ const MODEL = {
     music.frame=requestAnimationFrame(tick);
   }
   // Seeking moves the line without ringing the stars in between.
+  // It stays within the current pass, so the layer of stars does not change.
   function seek(share) {
-    const elapsed=Math.max(0,Math.min(.999,share))*SWEEP_SECONDS;
+    const pass=Math.floor(Math.max(0, currentElapsed()||0)/SWEEP_SECONDS);
+    const elapsed=(pass+Math.max(0,Math.min(.999,share)))*SWEEP_SECONDS;
     if (music.playing) {
       const now=window.strudel.getAudioContext().currentTime;
       music.start=now-elapsed; music.lastX=sweepX(elapsed); music.lastTime=now;
@@ -10335,7 +10370,11 @@ const MODEL = {
     applyPedal();
   }
   // Star edits change which stars sound on the next frame.
-  function refreshSounding() { music.sounding=null; }
+  function refreshSounding() {
+    music.sounding=null;
+    // Outside playback, recount the layers so the label stays right.
+    if (!music.playing) { soundingStars(Math.floor(Math.max(0, music.paused||0)/SWEEP_SECONDS)); syncLayer(); }
+  }
 
   canvas.width=MODEL.width;canvas.height=MODEL.height;
   syncUI();
