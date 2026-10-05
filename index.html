@@ -9597,7 +9597,15 @@ const MODEL = {
       options.amount=30+Math.floor(Math.random()*50);
       Object.assign(options, {offsetX:0, offsetY:0, rotation:0, scale:1});
       if (tool==='transform' && options.type==='laguna') tool='look';
-      syncUI(); redraw();
+      // A new star field too, so the stars that sound change with it: fresh positions,
+      // and counts spread around the defaults (each kind between half and double).
+      // The Lagoon's own stars stay only on the Lagoon, and only half the time.
+      starState.seed=1+Math.floor(Math.random()*99999);
+      for (const kind of STAR_KINDS)
+        starState.counts[kind]=Math.round(STAR_DEFAULTS[kind]*(.5+1.5*Math.random()));
+      starState.lagoon=options.type==='laguna' && Math.random()<.5;
+      starState.added=[]; starState.removed.clear();
+      starsChanged();
     },
     reset() {
       Object.assign(options, DEFAULT_OPTIONS);

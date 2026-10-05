@@ -75,7 +75,7 @@ The panel on the right has three tabs: **Nebula** (type, transform, color and sh
 
 **Paint.** Paint on the image with the mouse and each stroke turns into nebula when you let go. Brushes: Hydrogen (red), Oxygen (teal), Reflection (blue), Dust (darkens whatever is underneath, the Lagoon included) and an Eraser, with Size and Strength sliders, "Undo stroke" and "Clear painting". Painted gas follows the palette and hue shift like the rest of the nebula.
 
-**At the bottom of the panel**: toggle the layers (gas, stars, grain), "Surprise me" for a random combination, "Save PNG", and "Back to the original Lagoon".
+**At the bottom of the panel**: toggle the layers (gas, stars, grain), "Surprise me" for a random combination (nebula, colors, shape and a new star field, so the stars that sound change too), "Save PNG", and "Back to the original Lagoon".
 
 ## How it works
 
