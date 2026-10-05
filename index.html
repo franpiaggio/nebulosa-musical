@@ -9435,9 +9435,7 @@ const MODEL = {
   // Two tabs: nebula or stars. Plate clicks follow the tab: on "Stars" they use
   // the chosen star tool (adding stars by default), on "Nebula" they only move the
   // cloud when "Move" is on. `tool` is the effective tool; `starTool` is remembered.
-  // On phones and tablets a tap on the image should not edit anything by surprise, so
-  // click editing starts on View there; Add stays the default with a mouse.
-  const DEFAULT_STAR_TOOL=matchMedia('(pointer: coarse), (max-width: 900px)').matches ? 'look' : 'add';
+  const DEFAULT_STAR_TOOL='add';
   // In the musical version the stars are the instrument, so their tab comes first.
   let tab='stars', starTool=DEFAULT_STAR_TOOL, tool=DEFAULT_STAR_TOOL, toolKind='destellos';
   function setTab(next) {
