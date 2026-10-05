@@ -10100,7 +10100,8 @@ const MODEL = {
   // and after the last layer it starts over with the biggest.
   const MAX_LAYERS=6, LAYER_GAP=.5;
   function soundingStars(pass=0) {
-    const ranked=currentStars().entries.map(star=>({x:star[0], y:star[1],
+    const {entries, ids}=currentStars();
+    const ranked=entries.map((star, i)=>({x:star[0], y:star[1], manual:ids[i][0]==='M',
       // Seen color: core plus halo, each weighted by its area. temp < 0 red, > 0 blue.
       ...(()=>{
         const w=star[2]*star[2], h=star[6]*star[6];
@@ -10109,12 +10110,15 @@ const MODEL = {
       })(),
       light:((star[3]+star[4]+star[5])*star[2]*star[2]+(star[7]+star[8]+star[9])*star[6]*star[6])/3}))
       .sort((a,b)=>b.light-a.light);
+    // Stars added by hand sound on every pass, on top of the layer; only the rest are
+    // dealt into layers.
+    const manual=ranked.filter(star=>star.manual);
     // Layers are dealt in order of light, but a star only joins a layer if it is at least
     // LAYER_GAP of the image width away from the stars already in it; the rest wait for
     // a later layer. Every pass then rings at an even pace, never in clumps, and after
     // MAX_LAYERS passes it goes back to the biggest stars.
     const gap=MODEL.width*LAYER_GAP/music.count, layers=[];
-    let remaining=ranked;
+    let remaining=ranked.filter(star=>!star.manual);
     while (layers.length<MAX_LAYERS && remaining.length) {
       const layerStars=[], rest=[];
       for (const star of remaining) {
@@ -10123,12 +10127,12 @@ const MODEL = {
       }
       layers.push(layerStars); remaining=rest;
     }
-    const layer=pass%layers.length;
-    music.layer=layer; music.layers=layers.length;
+    const layer=layers.length ? pass%layers.length : 0;
+    music.layer=layer; music.layers=Math.max(1, layers.length);
     const chosen=layers[layer]||[];
     // Ring brightness is relative to the layer, so faint layers still show their rings.
-    const top=chosen.length ? chosen[0].light : 1;
-    return chosen.map(star=>({...star, brightness:Math.min(1,star.light/top), role:'chord'}));
+    const top=chosen.length ? chosen[0].light : manual.length ? manual[0].light : 1;
+    return [...chosen, ...manual].map(star=>({...star, brightness:Math.min(1,star.light/top), role:'chord'}));
   }
 
   // The line is drawn as a signal trace: a quiet wobble everywhere, plus a spike where
